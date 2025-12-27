@@ -1,0 +1,31 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Item {
+  id              String   @id @default(cuid())
+  name            String
+  description     String
+  imageUrl        String
+  displayedValue  Int
+  realValue       Int
+  intelGood       String   // Positive info
+  intelBad        String   // Negative info
+  intelSecret     String   // The real "truth"
+  createdAt       DateTime @default(now())
+}
+
+model GameSession {
+  id        String   @id @default(cuid())
+  roomCode  String
+  winners   String   // JSON stringified winners
+  totalRounds Int
+  itemsSold String   // JSON stringified sold items
+  createdAt DateTime @default(now())
+}
