@@ -12,6 +12,22 @@ const handle = app.getRequestHandler();
 const rooms = {}; // { [roomCode]: { host, players: [], state, currentItem, round, items: [] } }
 const MAX_ROUNDS = 5;
 
+const RARITIES = {
+    COMMON: { name: "SIRADAN", color: "#64748b", weight: 70, multiplier: 1 },
+    RARE: { name: "NADİR", color: "#3b82f6", weight: 20, multiplier: 1.5 },
+    LEGENDARY: { name: "EFSANEVİ", color: "#f59e0b", weight: 9, multiplier: 3 },
+    SHINY: { name: "IŞILTILI ✨", color: "#ec4899", weight: 1, multiplier: 5 }
+};
+
+// Utility to get random rarity based on weights
+function getRarity() {
+    const rand = Math.random() * 100;
+    if (rand < 1) return "SHINY";
+    if (rand < 10) return "LEGENDARY";
+    if (rand < 30) return "RARE";
+    return "COMMON";
+}
+
 // Utility to shuffle array
 function shuffle(array) {
     let currentIndex = array.length, randomIndex;
@@ -93,8 +109,35 @@ app.prepare().then(() => {
             const room = rooms[roomCode];
             // Pick next unique item from pre-shuffled session list
             const currentItemIndex = room.round - 1;
-            const randomItem = room.items[currentItemIndex % room.items.length];
-            room.currentItem = randomItem;
+            const baseItem = room.items[currentItemIndex % room.items.length];
+
+            // Calculate Rarity & Dynamic Values
+            const rarityKey = getRarity();
+            const rarity = RARITIES[rarityKey];
+            const isShiny = rarityKey === "SHINY";
+
+            // Real Value calculation: baseValue * rarityMultiplier * randomVariation
+            // We allow for "Shiny Trash" by having a floor of nearly 0 but high ceiling
+            const variation = 0.5 + Math.random(); // 0.5x to 1.5x variation
+            const realValue = Math.round(baseItem.realValue * rarity.multiplier * variation);
+
+            // Estimated Range: Usually accurate but can be deceptive
+            const estimateVariation = 0.8 + Math.random() * 0.4; // 0.8x to 1.2x accuracy
+            const midEstimate = baseItem.realValue * rarity.multiplier * estimateVariation;
+            const estimateMin = Math.round(midEstimate * 0.7);
+            const estimateMax = Math.round(midEstimate * 1.3);
+
+            room.currentItem = {
+                ...baseItem,
+                realValue,
+                rarity: rarityKey,
+                rarityLabel: rarity.name,
+                rarityColor: rarity.color,
+                isShiny,
+                estimateRange: [estimateMin, estimateMax]
+            };
+
+            const randomItem = room.currentItem; // For easier reference in existing code
             room.currentBid = 0;
             room.highestBidder = null;
             room.state = "INTEL_PHASE";
@@ -105,11 +148,22 @@ app.prepare().then(() => {
             const players = room.players;
             players.forEach((player, index) => {
                 let intel = "Hiçbir bilgin yok.";
-                const type = index % 4;
+                const type = index % 5;
+
                 if (type === 0) intel = randomItem.intelGood;
                 if (type === 1) intel = randomItem.intelBad;
                 if (type === 2) intel = randomItem.intelSecret;
-                if (type === 3) intel = "Gördüğün her şey yalan olabilir!";
+                if (type === 3) {
+                    const accuracy = Math.random() > 0.5 ? "yüksek" : "düşük";
+                    intel = `Bu eşyanın gerçek değeri tahmin edilen aralıkta olma ihtimali ${accuracy}.`;
+                }
+                if (type === 4) {
+                    const isTrustworthy = Math.random() > 0.3;
+                    const fakePrice = Math.round(realValue * (0.2 + Math.random()));
+                    intel = isTrustworthy
+                        ? `Güvenilir kaynaklar eşyanın gerçek değerinin ${realValue} civarında olduğunu söylüyor.`
+                        : `Sokaktaki dedikodulara göre bu eşya en fazla ${fakePrice}$ eder.`;
+                }
 
                 player.intel = intel;
                 io.to(player.id).emit("receive-intel", intel);
@@ -120,7 +174,12 @@ app.prepare().then(() => {
                     name: randomItem.name,
                     description: randomItem.description,
                     displayedValue: randomItem.displayedValue,
-                    imageUrl: randomItem.imageUrl
+                    imageUrl: randomItem.imageUrl,
+                    rarity: randomItem.rarity,
+                    rarityLabel: randomItem.rarityLabel,
+                    rarityColor: randomItem.rarityColor,
+                    isShiny: randomItem.isShiny,
+                    estimateRange: randomItem.estimateRange
                 },
                 round: room.round,
                 totalRounds: MAX_ROUNDS
@@ -229,6 +288,18 @@ app.prepare().then(() => {
         });
 
         // Handle bidding, power-ups, etc. will go here
+
+        socket.on("send-reaction", ({ roomCode, emoji }) => {
+            const room = rooms[roomCode];
+            if (room) {
+                const player = room.players.find(p => p.id === socket.id);
+                io.to(roomCode).emit("new-reaction", {
+                    emoji,
+                    playerName: player ? player.name : "İzleyici",
+                    id: Math.random() // Unique ID for key mapping in FE
+                });
+            }
+        });
 
         socket.on("disconnect", () => {
             console.log("User disconnected:", socket.id);

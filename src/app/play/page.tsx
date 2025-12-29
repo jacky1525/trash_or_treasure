@@ -19,6 +19,7 @@ export default function PlayerPage() {
   const [readyPlayers, setReadyPlayers] = useState<string[]>([]);
   const [isReady, setIsReady] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
+  const [currentItem, setCurrentItem] = useState<any>(null);
 
   const socket = getSocket();
 
@@ -29,6 +30,10 @@ export default function PlayerPage() {
 
     socket.on("timer-update", (time) => {
       setTimeLeft(time);
+    });
+
+    socket.on("round-started", ({ item }) => {
+      setCurrentItem(item);
     });
 
     socket.on("receive-intel", (data) => {
@@ -90,6 +95,7 @@ export default function PlayerPage() {
     });
 
     return () => {
+      socket.off("round-started");
       socket.off("receive-intel");
       socket.off("bidding-started");
       socket.off("bid-updated");
@@ -184,129 +190,92 @@ export default function PlayerPage() {
           )}
 
           {gameState === "BIDDING" && (
-             <div className="space-y-6 flex flex-col h-full">
-                {/* 2. STATUS BANNER (Dynamic LED style) */}
-                <motion.div
-                   initial={{ scale: 0.9, opacity: 0 }}
-                   animate={{ scale: 1, opacity: 1 }}
-                   className={`relative overflow-hidden p-6 rounded-[2rem] border-2 flex items-center justify-between shadow-xl transition-all duration-300 ${highestBidder === playerName ? 'bg-green-500/10 border-green-500/30' : highestBidder ? 'bg-red-500/10 border-red-500/30' : 'bg-white/5 border-white/10'}`}
-                >
-                   <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white ${highestBidder === playerName ? 'bg-green-500' : highestBidder ? 'bg-red-500' : 'bg-slate-700'}`}>
-                         {highestBidder === playerName ? <Zap className="w-6 h-6 fill-current" /> : highestBidder ? <AlertCircle className="w-6 h-6" /> : <Clock className="w-6 h-6" />}
-                      </div>
-                      <div className="flex flex-col">
-                         <h3 className={`font-black italic text-2xl leading-none ${highestBidder === playerName ? 'text-green-400' : highestBidder ? 'text-red-400' : 'text-slate-200'}`}>
-                            {highestBidder === playerName ? "LİDERSİN!" : highestBidder ? "GEÇİLDİN!" : "TEKLİF VER!"}
-                         </h3>
-                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
-                            {highestBidder === playerName ? "En yüksek teklif senin." : highestBidder ? "Biri daha fazla teklif verdi." : "Müzayede başladı."}
-                         </span>
-                      </div>
-                   </div>
-                   <div className="text-right">
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 leading-none">TEKLİF</p>
-                      <p className="text-3xl font-black italic text-white leading-none">${currentBid.toLocaleString()}</p>
-                   </div>
-                </motion.div>
+            <div className="space-y-6 flex flex-col h-full">
+              {/* 2. ITEM STATUS BANNER (SADECE İSİM) */}
+              <div 
+                className={`relative overflow-hidden p-6 rounded-[2rem] border-2 flex items-center justify-between shadow-xl transition-all duration-300 ${highestBidder === playerName ? 'bg-green-500/10 border-green-500/30' : highestBidder ? 'bg-red-500/10 border-red-500/30' : 'bg-white/5 border-white/10'}`}
+              >
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-2xl font-black text-white italic leading-none">{currentItem?.name}</h3>
+                  </div>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">
+                    {highestBidder === playerName ? "LİDERSİN!" : highestBidder ? `${highestBidder.toUpperCase()} GEÇTİ!` : "TEKLİF BEKLENİYOR"}
+                  </p>
+                </div>
+              </div>
 
-                {/* 3. SECRET INTEL (Confidential Card) style adjusted for dark theme */}
-                <div className="relative group flex-1 min-h-[250px]">
-                   {/* Card Folder Tab */}
-                   <div className="absolute top-[-12px] left-6 w-24 h-6 bg-[#2D2A10] rounded-t-xl border-x-2 border-t-2 border-yellow-900/40" />
-                   
-                   <div className="h-full bg-gradient-to-br from-[#1E1C0A] to-[#121106] rounded-[2.5rem] p-10 shadow-2xl border-2 border-yellow-900/30 relative overflow-hidden flex flex-col">
-                      {/* Background Watermark/Stripe */}
-                      <div className="absolute inset-0 opacity-[0.1] pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #FFD700 0, #FFD700 1px, transparent 0, transparent 50%)', backgroundSize: '10px 10px' }} />
-                      
-                      {/* Confidential Header */}
-                      <div className="flex items-center gap-2 mb-6 text-yellow-500/40">
-                         <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
-                         <span className="text-[10px] font-black uppercase tracking-[0.4em]">GİZLİ İSTİHBARAT</span>
-                      </div>
+              {/* Current High Bid */}
+              <div className="bg-white/5 border border-white/10 p-6 rounded-[2rem] flex justify-between items-center shadow-inner">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">MEVCUT TEKLİF</span>
+                  <p className="text-3xl font-black italic text-white leading-none">${currentBid.toLocaleString()}</p>
+                </div>
+                <div className="w-12 h-12 bg-pink-500/10 rounded-full flex items-center justify-center text-pink-500 border border-pink-500/20">
+                   <Zap className="w-6 h-6 fill-current" />
+                </div>
+              </div>
 
-                      {/* Confidential Text */}
-                      <div className="relative flex-1">
-                         {/* Slanted "CONFIDENTIAL" Stamp */}
-                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-12 pointer-events-none whitespace-nowrap">
-                            <span className="text-[5rem] font-black text-yellow-500/5 border-8 border-yellow-500/5 px-8 rounded-3xl uppercase tracking-tighter select-none">
-                               GİZLİDİR
-                            </span>
-                         </div>
+              {/* 3. SECRET INTEL (Confidential Card) */}
+              <div className="relative group flex-1 min-h-[250px]">
+                <div className="absolute top-[-12px] left-6 w-24 h-6 bg-[#2D2A10] rounded-t-xl border-x-2 border-t-2 border-yellow-900/40" />
+                <div className="h-full bg-gradient-to-br from-[#1E1C0A] to-[#121106] rounded-[2.5rem] p-10 shadow-2xl border-2 border-yellow-900/30 relative overflow-hidden flex flex-col">
+                  <div className="absolute inset-0 opacity-[0.1] pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #FFD700 0, #FFD700 1px, transparent 0, transparent 50%)', backgroundSize: '10px 10px' }} />
+                  <div className="flex items-center gap-2 mb-6 text-yellow-500/40">
+                    <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.4em]">GİZLİ İSTİHBARAT</span>
+                  </div>
+                  <div className="relative flex-1">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-12 pointer-events-none whitespace-nowrap">
+                      <span className="text-[5rem] font-black text-yellow-500/5 border-8 border-yellow-500/5 px-8 rounded-3xl uppercase tracking-tighter select-none">GİZLİDİR</span>
+                    </div>
+                    <div className="flex flex-col gap-4 font-mono">
+                      <p className="text-xs bg-white/5 self-start px-2 py-0.5 rounded text-yellow-500/50">ID: #SYS_{roomCode}</p>
+                      <div className="h-[2px] w-12 bg-yellow-500/20" />
+                      <p className="text-lg font-bold text-yellow-100 leading-relaxed italic opacity-80">"{intel || "Müzayede hakkında kritik bir sızıntı bekleniyor..."}"</p>
+                    </div>
+                  </div>
+                  <div className="mt-6 flex justify-between items-end border-t border-yellow-500/10 pt-4">
+                    <div className="flex flex-col">
+                      <span className="text-[8px] font-black text-yellow-500/20 uppercase tracking-widest">INTEL_REL_99X</span>
+                      <span className="text-[8px] font-black text-yellow-500/20 uppercase tracking-widest">ENCRYPTED_SIG: OK</span>
+                    </div>
+                    <div className="text-right"><span className="text-[9px] font-black text-yellow-500/40 uppercase tracking-widest">KAPALI DOSYA</span></div>
+                  </div>
+                </div>
+              </div>
 
-                         <div className="flex flex-col gap-4 font-mono">
-                            <p className="text-xs bg-white/5 self-start px-2 py-0.5 rounded text-yellow-500/50">ID: #SYS_{roomCode}</p>
-                            <div className="h-[2px] w-12 bg-yellow-500/20" />
-                            <p className="text-lg font-bold text-yellow-100 leading-relaxed italic opacity-80">
-                               "{intel || "Müzayede hakkında kritik bir sızıntı bekleniyor..."}"
-                            </p>
-                         </div>
-                      </div>
-
-                      {/* Footer Info */}
-                      <div className="mt-6 flex justify-between items-end border-t border-yellow-500/10 pt-4">
-                         <div className="flex flex-col">
-                            <span className="text-[8px] font-black text-yellow-500/20 uppercase tracking-widest">INTEL_REL_99X</span>
-                            <span className="text-[8px] font-black text-yellow-500/20 uppercase tracking-widest">ENCRYPTED_SIG: OK</span>
-                         </div>
-                         <div className="text-right">
-                            <span className="text-[9px] font-black text-yellow-500/40 uppercase tracking-widest">KAPALI DOSYA</span>
-                         </div>
-                      </div>
-                   </div>
+              {/* 4. REACTIONS & QUICK BID ACTIONS */}
+              <div className="mt-auto pt-4 border-t border-white/5 space-y-6">
+                {/* Reactions */}
+                <div className="flex justify-between items-center px-2">
+                   {['🔥', '😂', '😮', '💸', '🤡'].map((emoji) => (
+                      <motion.button
+                         key={emoji}
+                         whileTap={{ scale: 1.5 }}
+                         onClick={() => socket.emit("send-reaction", { roomCode: roomCode.toUpperCase(), emoji })}
+                         className="text-2xl hover:scale-125 transition-transform"
+                      >
+                         {emoji}
+                      </motion.button>
+                   ))}
                 </div>
 
-                {/* 4. QUICK BID ACTIONS - Dark Style */}
-                <div className="mt-auto pt-6 border-t border-white/5">
-                   <div className="flex justify-between items-center mb-6 px-2">
-                       <span className="text-xs font-black text-slate-500 uppercase tracking-widest">HIZLI TEKLİF</span>
-                       <div className="flex items-center gap-2 text-pink-500">
-                          <Clock className="w-3.5 h-3.5" />
-                          <span className="text-xs font-black uppercase tracking-widest">KALAN SÜRE: {timeLeft}S</span>
-                       </div>
-                   </div>
-
-                   <div className="grid grid-cols-3 gap-5">
-                      {/* SAFE Button */}
-                      <motion.button
-                         whileTap={{ scale: 0.95 }}
-                         onClick={() => placeBid(10)}
-                         disabled={balance < currentBid + 10}
-                         className="h-28 bg-white/5 border border-white/10 rounded-[2rem] flex flex-col items-center justify-center gap-1 shadow-sm active:bg-white/10 transition-colors disabled:opacity-20 group text-slate-300"
-                      >
-                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">GÜVENLİ</span>
-                         <span className="text-2xl font-black leading-none">+10</span>
-                      </motion.button>
-
-                      {/* RAISE Button */}
-                      <motion.button
-                         whileTap={{ scale: 0.95 }}
-                         onClick={() => placeBid(50)}
-                         disabled={balance < currentBid + 50}
-                         className="h-28 bg-blue-500/10 border-2 border-blue-500/30 rounded-[2rem] flex flex-col items-center justify-center gap-1 shadow-lg shadow-blue-500/5 active:scale-105 transition-all disabled:opacity-20 text-blue-400"
-                      >
-                         <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">ARTIR</span>
-                         <span className="text-3xl font-black leading-none">+50</span>
-                      </motion.button>
-
-                      {/* AGGRESSIVE Button */}
-                      <motion.button
-                         whileTap={{ scale: 0.95 }}
-                         onClick={() => placeBid(100)}
-                         disabled={balance < currentBid + 100}
-                         className="h-28 bg-gradient-to-br from-pink-600 to-purple-700 rounded-[2rem] flex flex-col items-center justify-center gap-1 shadow-xl shadow-pink-500/20 active:scale-105 transition-all text-white disabled:opacity-20 relative overflow-hidden"
-                      >
-                         <div className="absolute top-2 right-3 w-2 h-2 bg-yellow-400 rounded-full animate-ping" />
-                         <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">AGRESİF</span>
-                         <span className="text-3xl font-black leading-none">+100</span>
-                      </motion.button>
-                   </div>
-
-                   <p className="text-center text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-8 leading-relaxed opacity-60">
-                      Teklifler anında cüzdanınızdan düşülür.<br/>İadesi yoktur.
-                   </p>
+                <div className="flex justify-between items-center px-2">
+                  <span className="text-xs font-black text-slate-500 uppercase tracking-widest">HIZLI TEKLİF</span>
+                  <div className="flex items-center gap-2 text-pink-500">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span className="text-xs font-black uppercase tracking-widest">KALAN SÜRE: {timeLeft}S</span>
+                  </div>
                 </div>
-             </div>
+                <div className="grid grid-cols-3 gap-5">
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => placeBid(10)} disabled={balance < currentBid + 10} className="h-28 bg-white/5 border border-white/10 rounded-[2rem] flex flex-col items-center justify-center gap-1 text-slate-300 disabled:opacity-20"><span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">GÜVENLİ</span><span className="text-2xl font-black leading-none">+10</span></motion.button>
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => placeBid(50)} disabled={balance < currentBid + 50} className="h-28 bg-blue-500/10 border-2 border-blue-500/30 rounded-[2rem] flex flex-col items-center justify-center gap-1 text-blue-400 disabled:opacity-20"><span className="text-[10px] font-bold uppercase tracking-widest opacity-60">ARTIR</span><span className="text-3xl font-black leading-none">+50</span></motion.button>
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => placeBid(100)} disabled={balance < currentBid + 100} className="h-28 bg-gradient-to-br from-pink-600 to-purple-700 rounded-[2rem] flex flex-col items-center justify-center gap-1 text-white disabled:opacity-20 relative overflow-hidden"><div className="absolute top-2 right-3 w-2 h-2 bg-yellow-400 rounded-full animate-ping" /><span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">AGRESİF</span><span className="text-3xl font-black leading-none">+100</span></motion.button>
+                </div>
+                <p className="text-center text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-8 leading-relaxed opacity-60">Teklifler anında cüzdanınızdan düşülür.<br/>İadesi yoktur.</p>
+              </div>
+            </div>
           )}
 
           {gameState === "REVEAL" && (

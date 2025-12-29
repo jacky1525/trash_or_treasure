@@ -17,6 +17,10 @@ interface Item {
   intelSecret: string;
 }
 
+const formatPrice = (val: number) => {
+  return val.toLocaleString('tr-TR');
+};
+
 export default function AdminClient({ initialItems }: { initialItems: Item[] }) {
   const [items, setItems] = useState<Item[]>(initialItems);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -96,20 +100,28 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
                 </div>
               </div>
               
-              <div className="p-6 space-y-4">
+              <div className="p-6 space-y-4 flex-1">
                 <div>
-                  <h3 className="text-xl font-bold uppercase tracking-tight">{item.name}</h3>
-                  <p className="text-slate-500 text-sm line-clamp-1">{item.description}</p>
+                  <h3 className="text-xl font-bold uppercase tracking-tight text-white">{item.name}</h3>
+                  <p className="text-slate-500 text-sm line-clamp-1 italic">"{item.description}"</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-white/5 p-3 rounded-2xl">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Görünen</p>
-                    <p className="text-lg font-black">${item.displayedValue}</p>
+                <div className="flex flex-col gap-3">
+                  <div className="bg-white/5 p-4 rounded-2xl border border-white/5 flex justify-between items-center group/aralik">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Tahmini Aralık</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-sm font-black text-white">${formatPrice(Math.round(item.displayedValue * 0.8))}</p>
+                        <span className="text-slate-700">-</span>
+                        <p className="text-sm font-black text-white">${formatPrice(Math.round(item.displayedValue * 1.2))}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-pink-500/10 p-3 rounded-2xl border border-pink-500/20">
-                    <p className="text-[10px] font-black text-pink-500 uppercase tracking-widest mb-1">Gerçek</p>
-                    <p className="text-lg font-black text-pink-400">${item.realValue}</p>
+                  <div className="bg-pink-500/10 p-4 rounded-2xl border border-pink-500/20 flex justify-between items-center">
+                    <div>
+                      <p className="text-[10px] font-black text-pink-500 uppercase tracking-widest mb-1">Reveal Değeri</p>
+                      <p className="text-xl font-black text-pink-400">${formatPrice(item.realValue)}</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -137,12 +149,12 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
               className="relative w-full max-w-2xl bg-slate-900 border border-white/10 rounded-[3rem] shadow-2xl overflow-hidden"
             >
               <div className="p-8 border-b border-white/5 flex justify-between items-center">
-                <h2 className="text-2xl font-black italic uppercase tracking-tighter">
+                <h2 className="text-2xl font-black italic uppercase tracking-tighter bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
                   {editingItem ? "EŞYAYI DÜZENLE" : "YENİ EŞYA OLUŞTUR"}
                 </h2>
                 <button
                   onClick={() => setIsModalOpen(false)}
-                  className="p-2 hover:bg-white/5 rounded-full transition-all"
+                  className="p-2 hover:bg-white/10 rounded-full transition-all text-slate-400 hover:text-white"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -165,14 +177,32 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
                   <textarea name="description" defaultValue={editingItem?.description} required rows={2} className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 focus:border-pink-500 outline-none transition-all resize-none" />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-2">Görünen Fiyat ($)</label>
-                    <input type="number" name="displayedValue" defaultValue={editingItem?.displayedValue} required className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 focus:border-pink-500 outline-none transition-all" />
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-2">Tahmini Baz Fiyat ($)</label>
+                    <input 
+                      type="number" 
+                      name="displayedValue" 
+                      defaultValue={editingItem?.displayedValue} 
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        const min = Math.round(val * 0.8);
+                        const max = Math.round(val * 1.2);
+                        const preview = document.getElementById('range-preview');
+                        if (preview) preview.innerText = `$${formatPrice(min)} - $${formatPrice(max)}`;
+                      }}
+                      required 
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 focus:border-pink-500 outline-none transition-all" 
+                    />
+                    <p className="text-[10px] text-slate-600 font-bold px-2">
+                      OYUNCU GÖRÜNÜMÜ: <span id="range-preview" className="text-pink-500">
+                        ${formatPrice(Math.round((editingItem?.displayedValue || 0) * 0.8))} - ${formatPrice(Math.round((editingItem?.displayedValue || 0) * 1.2))}
+                      </span>
+                    </p>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-2">Gerçek Değer ($)</label>
-                    <input type="number" name="realValue" defaultValue={editingItem?.realValue} required className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 focus:border-pink-500 outline-none transition-all" />
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-2">Reveal Değeri (Gerçek) ($)</label>
+                    <input type="number" name="realValue" defaultValue={editingItem?.realValue} required className="w-full bg-slate-950 border border-pink-500/30 rounded-2xl px-4 py-3 focus:border-pink-500 outline-none transition-all text-pink-400 font-bold" />
                   </div>
                 </div>
 
@@ -202,7 +232,7 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
                 </div>
 
                 <div className="pt-6">
-                  <button type="submit" className="w-full bg-white text-slate-950 py-5 rounded-[2rem] font-black text-xl hover:bg-pink-500 hover:text-white transition-all shadow-xl shadow-white/5">
+                  <button type="submit" className="w-full bg-gradient-to-r from-pink-600 to-purple-600 text-white py-5 rounded-[2rem] font-black text-xl hover:from-pink-500 hover:to-purple-500 transition-all shadow-xl shadow-pink-500/20 active:scale-[0.98]">
                     {editingItem ? "GÜNCELLEMEYİ KAYDET" : "EŞYAYI KATALOĞA EKLE"}
                   </button>
                 </div>
