@@ -46,6 +46,7 @@ export async function createItem(formData: FormData) {
     const intelGood = formData.get("intelGood") as string;
     const intelBad = formData.get("intelBad") as string;
     const intelSecret = formData.get("intelSecret") as string;
+    const category = formData.get("category") as string || "Other";
 
     await prisma.item.create({
         data: {
@@ -57,6 +58,7 @@ export async function createItem(formData: FormData) {
             intelGood,
             intelBad,
             intelSecret,
+            category,
         },
     });
 
@@ -79,6 +81,7 @@ export async function updateItem(id: string, formData: FormData) {
     const intelGood = formData.get("intelGood") as string;
     const intelBad = formData.get("intelBad") as string;
     const intelSecret = formData.get("intelSecret") as string;
+    const category = formData.get("category") as string || "Other";
 
     await prisma.item.update({
         where: { id },
@@ -91,6 +94,7 @@ export async function updateItem(id: string, formData: FormData) {
             intelGood,
             intelBad,
             intelSecret,
+            category,
         },
     });
 

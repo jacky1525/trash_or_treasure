@@ -15,7 +15,9 @@ model Item {
   imageUrl        String
   displayedValue  Int
   realValue       Int
-  intelGood       String   // Positive info
+  category        String   @default("Other")
+  gameSet         String   @default("SET_A") // SET_A, SET_B, SET_C
+  intelGood       String?  // Positive info
   intelBad        String   // Negative info
   intelSecret     String   // The real "truth"
   createdAt       DateTime @default(now())

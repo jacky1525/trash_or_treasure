@@ -15,18 +15,9 @@ export default async function AdminPage() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-8">
-      <div className="max-w-6xl mx-auto space-y-8">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-4xl font-black italic tracking-tighter bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
-              ADMIN PANEL
-            </h1>
-            <p className="text-slate-400 font-medium">Eşya kataloğunu yönetin ve yeni hazineler ekleyin.</p>
-          </div>
-        </div>
-
-        <AdminClient initialItems={items} />
+    <div className="min-h-screen bg-slate-950 text-white">
+      <div className="max-w-7xl mx-auto">
+        <AdminClient initialItems={items as any} />
       </div>
     </div>
   );

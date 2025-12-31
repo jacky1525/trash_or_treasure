@@ -10,7 +10,6 @@ const app = next({ dev });
 const handle = app.getRequestHandler();
 
 const rooms = {}; // { [roomCode]: { host, players: [], state, currentItem, round, items: [] } }
-const MAX_ROUNDS = 5;
 
 const RARITIES = {
     COMMON: { name: "SIRADAN", color: "#64748b", weight: 70, multiplier: 1 },
@@ -52,50 +51,170 @@ app.prepare().then(() => {
         }
     });
 
+    // Cleanup timers map
+    const cleanupTimers = {};
+
     io.on("connection", (socket) => {
         console.log("User connected:", socket.id);
 
-        socket.on("create-room", (roomCode) => {
+        socket.on("create-room", ({ roomCode, hostId }) => {
             rooms[roomCode] = {
                 host: socket.id,
+                hostId: hostId, // Store persistent host session ID
                 players: [],
                 state: "LOBBY",
-                items: [], // Session specific unique items
                 currentItem: null,
-                round: 0,
+                round: 1,
+                maxRounds: 9, // Default max rounds
+                items: [], // Session specific unique items
+                readyPlayers: new Set(),
                 bidHistory: [],
-                readyPlayers: new Set()
+                soldHistory: [], // Track all sold items
+                currentBid: 0,
+                highestBidder: null
             };
             socket.join(roomCode);
             socket.emit("room-created", roomCode);
-            console.log(`Room created: ${roomCode}`);
+            console.log(`Room created: ${roomCode} by host: ${hostId}`);
         });
 
-        socket.on("join-room", ({ roomCode, playerName }) => {
+        socket.on("join-room", ({ roomCode, playerName, playerId }) => {
             if (rooms[roomCode]) {
-                const player = {
-                    id: socket.id,
-                    name: playerName,
-                    balance: 5000,
-                    inventory: [],
-                    intel: null
-                };
-                rooms[roomCode].players.push(player);
+                // Clear any pending cleanup if someone joins
+                if (cleanupTimers[roomCode]) {
+                    clearTimeout(cleanupTimers[roomCode]);
+                    delete cleanupTimers[roomCode];
+                    console.log(`[CLEANUP] Cancelled cleanup for room ${roomCode}`);
+                }
+
+                // Check if player is already in room (reconnection)
+                // Check if player is already in room (reconnection)
+                let player = rooms[roomCode].players.find(p => p.playerId === playerId);
+
+                if (player) {
+                    player.id = socket.id; // Update socket ID
+                    player.name = playerName; // Update name just in case
+                    console.log(`Player ${playerName} reconnected to ${roomCode}`);
+                } else {
+                    player = {
+                        id: socket.id,
+                        playerId: playerId,
+                        name: playerName,
+                        balance: 500000,
+                        inventory: [],
+                        intel: null
+                    };
+                    rooms[roomCode].players.push(player);
+                    console.log(`${playerName} joined room ${roomCode}`);
+                }
+
                 socket.join(roomCode);
+
+                // Always emit join confirmation
+                socket.emit("room-joined", {
+                    player,
+                    state: rooms[roomCode].state,
+                    currentItem: rooms[roomCode].currentItem,
+                    round: rooms[roomCode].round,
+                    maxRounds: rooms[roomCode].maxRounds
+                });
+
                 io.to(roomCode).emit("player-joined", {
                     players: rooms[roomCode].players,
                     playerName
                 });
-                console.log(`${playerName} joined room ${roomCode}`);
             } else {
                 socket.emit("error-msg", "Room not found");
             }
         });
 
-        socket.on("start-game", async (roomCode) => {
+        socket.on("sync-room", ({ roomCode, sessionId, isHost }) => {
+            const room = rooms[roomCode];
+            if (!room) {
+                socket.emit("error-msg", "Room not found");
+                return;
+            }
+
+            if (isHost) {
+                if (room.hostId === sessionId) {
+                    room.host = socket.id;
+                    socket.join(roomCode);
+                    console.log(`Host re-synced to room ${roomCode}`);
+                }
+            } else {
+                const player = room.players.find(p => p.playerId === sessionId);
+                if (player) {
+                    player.id = socket.id;
+                    socket.join(roomCode);
+                    console.log(`Player ${player.name} re-synced to room ${roomCode}`);
+                }
+            }
+
+            // Sync means activity -> cancel cleanup
+            if (cleanupTimers[roomCode]) {
+                clearTimeout(cleanupTimers[roomCode]);
+                delete cleanupTimers[roomCode];
+                console.log(`[CLEANUP] Cancelled cleanup for room ${roomCode} (Sync)`);
+            }
+
+            // Send full current state for synchronization
+            socket.emit("room-synced", {
+                state: room.state,
+                players: room.players,
+                currentItem: room.currentItem,
+                round: room.round,
+                maxRounds: room.maxRounds,
+                soldHistory: room.soldHistory,
+                currentBid: room.currentBid,
+                items: room.items.map(i => i.name), // Just names for security if needed
+                highestBidder: room.highestBidder
+            });
+        });
+
+        socket.on("start-game", async (roomCode, settings) => {
             if (rooms[roomCode] && rooms[roomCode].host === socket.id) {
-                // Fetch and shuffle all items for this session
-                const allItems = await prisma.item.findMany();
+                const room = rooms[roomCode];
+                // Default settings
+                const defaultSettings = {
+                    roundDuration: 60,
+                    selectedCategory: "HEPSİ",
+                    maxRounds: 8,
+                    selectedSet: "SET_A" // Default to Set A
+                };
+
+                room.settings = { ...defaultSettings, ...settings };
+                room.maxRounds = room.settings.maxRounds || 8;
+
+                console.log(`[DEBUG] Starting game in room ${roomCode} with Set: ${room.settings.selectedSet}, Rounds: ${room.maxRounds}`);
+
+                // Build Prisma Query
+                const queryWhere = {};
+
+                // 1. Filter by Set (if not "HEPSİ" or "REMIX")
+                if (room.settings.selectedSet && room.settings.selectedSet !== "HEPSİ" && room.settings.selectedSet !== "REMIX") {
+                    queryWhere.gameSet = room.settings.selectedSet;
+                }
+
+                // 2. Filter by Category (if not "HEPSİ")
+                const selectedCats = room.settings.selectedCategories || [room.settings.selectedCategory || "HEPSİ"];
+                if (!selectedCats.includes("HEPSİ")) {
+                    const targetCats = selectedCats.map(c => c.toUpperCase());
+                    // Prisma's "in" operator for array filtering
+                    queryWhere.category = { in: targetCats, mode: 'insensitive' };
+                }
+
+                // Fetch items based on query
+                let allItems = await prisma.item.findMany({
+                    where: queryWhere
+                });
+
+                // Fallback: If no items found (maybe set is empty?), fetch all
+                if (allItems.length === 0) {
+                    console.log("[WARN] No items found for filter, fetching all items fallback.");
+                    allItems = await prisma.item.findMany();
+                }
+
+                // Shuffle logic
                 rooms[roomCode].items = shuffle([...allItems]);
 
                 rooms[roomCode].state = "GAME_START";
@@ -123,7 +242,7 @@ app.prepare().then(() => {
 
             // Estimated Range: Usually accurate but can be deceptive
             const estimateVariation = 0.8 + Math.random() * 0.4; // 0.8x to 1.2x accuracy
-            const midEstimate = baseItem.realValue * rarity.multiplier * estimateVariation;
+            const midEstimate = baseItem.displayedValue * rarity.multiplier * estimateVariation;
             const estimateMin = Math.round(midEstimate * 0.7);
             const estimateMax = Math.round(midEstimate * 1.3);
 
@@ -182,13 +301,13 @@ app.prepare().then(() => {
                     estimateRange: randomItem.estimateRange
                 },
                 round: room.round,
-                totalRounds: MAX_ROUNDS
+                totalRounds: room.maxRounds
             });
 
             // After 10 seconds of intel, start bidding
             setTimeout(() => {
                 room.state = "BIDDING";
-                room.timeLeft = 30;
+                room.timeLeft = room.settings?.roundDuration || 60;
                 io.to(roomCode).emit("bidding-started", { duration: room.timeLeft });
 
                 const timer = setInterval(() => {
@@ -242,17 +361,41 @@ app.prepare().then(() => {
             const winner = room.highestBidder;
 
             if (winner) {
-                winner.balance -= room.currentBid;
+                // Return on Investment (ROI) Logic:
+                // Player pays the bid price, but gains the item's real value back into their liquid assets
+                winner.balance = (winner.balance - room.currentBid) + room.currentItem.realValue;
                 winner.inventory.push(room.currentItem);
                 const profit = room.currentItem.realValue - room.currentBid;
+
+                const soldData = {
+                    item: room.currentItem,
+                    winner: winner.name,
+                    price: room.currentBid,
+                    realValue: room.currentItem.realValue,
+                    profit: profit,
+                    success: true
+                };
+                room.soldHistory.push(soldData);
+                console.log(`[DEBUG] Item added to history. Total count: ${room.soldHistory.length}`);
 
                 io.to(roomCode).emit("item-sold", {
                     winner: winner.name,
                     price: room.currentBid,
                     realValue: room.currentItem.realValue,
-                    profit: profit
+                    profit: profit,
+                    newBalance: winner.balance
                 });
             } else {
+                const soldData = {
+                    item: room.currentItem,
+                    winner: "KİMSE",
+                    price: 0,
+                    realValue: room.currentItem.realValue,
+                    profit: 0,
+                    success: false
+                };
+                room.soldHistory.push(soldData);
+
                 io.to(roomCode).emit("item-sold", {
                     winner: "KİMSE",
                     price: 0,
@@ -267,21 +410,28 @@ app.prepare().then(() => {
         socket.on("player-ready", ({ roomCode }) => {
             const room = rooms[roomCode];
             if (room && room.state === "REVEAL") {
-                room.readyPlayers.add(socket.id);
+                const player = room.players.find(p => p.id === socket.id);
+                if (player) {
+                    room.readyPlayers.add(player.playerId);
 
-                io.to(roomCode).emit("ready-update", {
-                    readyCount: room.readyPlayers.size,
-                    totalCount: room.players.length,
-                    readyPlayers: Array.from(room.readyPlayers)
-                });
+                    io.to(roomCode).emit("ready-update", {
+                        readyCount: room.readyPlayers.size,
+                        totalCount: room.players.length,
+                        readyPlayers: Array.from(room.readyPlayers)
+                    });
 
-                if (room.readyPlayers.size >= room.players.length && room.players.length > 0) {
-                    if (room.round < MAX_ROUNDS) {
-                        room.round++;
-                        startNewRound(roomCode);
-                    } else {
-                        room.state = "GAME_OVER";
-                        io.to(roomCode).emit("game-over", room.players);
+                    if (room.readyPlayers.size >= room.players.length && room.players.length > 0) {
+                        if (room.round < room.maxRounds) {
+                            room.round++;
+                            startNewRound(roomCode);
+                        } else {
+                            room.state = "GAME_OVER";
+                            console.log(`[DEBUG] Emitting game-over with ${room.soldHistory.length} items in history`);
+                            io.to(roomCode).emit("game-over", {
+                                players: room.players,
+                                soldHistory: room.soldHistory
+                            });
+                        }
                     }
                 }
             }
@@ -303,7 +453,32 @@ app.prepare().then(() => {
 
         socket.on("disconnect", () => {
             console.log("User disconnected:", socket.id);
-            // Optional: Cleanup empty rooms or notify host
+
+            // Find which room this socket belongs to
+            // This is O(N) but fine for this scale. Optimized approach would be to map socket.id -> roomCode
+            Object.keys(rooms).forEach(roomCode => {
+                const room = rooms[roomCode];
+                // Check if host or player
+                const isHost = room.host === socket.id;
+                const isPlayer = room.players.some(p => p.id === socket.id);
+
+                if (isHost || isPlayer) {
+                    // Check active connections in this room
+                    // io.sockets.adapter.rooms.get(roomCode) returns a Set of socketIds in the room
+                    const socketsInRoom = io.sockets.adapter.rooms.get(roomCode)?.size || 0;
+
+                    if (socketsInRoom <= 0) {
+                        console.log(`[CLEANUP] Room ${roomCode} is empty. Scheduling deletion in 60 minutes...`);
+
+                        // Set 1 hour timeout
+                        cleanupTimers[roomCode] = setTimeout(() => {
+                            console.log(`[CLEANUP] Deleting room ${roomCode} due to inactivity.`);
+                            delete rooms[roomCode];
+                            delete cleanupTimers[roomCode];
+                        }, 60 * 60 * 1000); // 1 hour
+                    }
+                }
+            });
         });
     });
 

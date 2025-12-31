@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Pencil, Trash2, X, Save, Image as ImageIcon, DollarSign, Info, Eye } from "lucide-react";
-import { createItem, deleteItem, updateItem } from "./actions";
+import { Plus, Pencil, Trash2, X, Search, Image as ImageIcon, DollarSign, Eye, Filter, LogOut, LayoutDashboard, Save, RefreshCw } from "lucide-react";
+import { createItem, deleteItem, updateItem, logout } from "./actions";
 
 interface Item {
   id: string;
@@ -12,10 +12,14 @@ interface Item {
   imageUrl: string;
   displayedValue: number;
   realValue: number;
+  category: string;
+  gameSet: string;
   intelGood: string;
   intelBad: string;
   intelSecret: string;
 }
+
+const CATEGORIES = ["HEPSİ", "History", "Pop-Culture", "Luxury", "Art", "Tech"];
 
 const formatPrice = (val: number) => {
   return val.toLocaleString('tr-TR');
@@ -25,6 +29,9 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
   const [items, setItems] = useState<Item[]>(initialItems);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("HEPSİ");
+  const [selectedSet, setSelectedSet] = useState("HEPSİ");
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -36,9 +43,6 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
       await createItem(formData);
     }
 
-    // Since revalidatePath is server-side, we manually refresh or let Next.js handle it
-    // For local UI feel, we can just reload or fetch again. 
-    // Simplified: refresh page
     window.location.reload();
   };
 
@@ -49,85 +53,245 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
     }
   };
 
+  const filteredItems = useMemo(() => {
+    return initialItems.filter(item => {
+      const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          item.description.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = selectedCategory === "HEPSİ" || 
+                             item.category === selectedCategory ||
+                             item.category?.toUpperCase() === selectedCategory.toUpperCase();
+      const matchesSet = selectedSet === "HEPSİ" || 
+                        item.gameSet === selectedSet;
+      return matchesSearch && matchesCategory && matchesSet;
+    });
+  }, [initialItems, searchQuery, selectedCategory, selectedSet]);
+
   return (
-    <div className="space-y-6">
-      <div className="flex justify-end">
-        <button
-          onClick={() => {
-            setEditingItem(null);
-            setIsModalOpen(true);
-          }}
-          className="bg-white text-slate-950 px-6 py-3 rounded-2xl font-black flex items-center gap-2 hover:bg-pink-500 hover:text-white transition-all shadow-lg"
-        >
-          <Plus className="w-5 h-5" />
-          YENİ EŞYA EKLE
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <AnimatePresence>
-          {items.map((item) => (
-            <motion.div
-              key={item.id}
-              layout
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white/5 border border-white/10 rounded-[2.5rem] overflow-hidden flex flex-col group hover:border-pink-500/50 transition-all duration-300"
-            >
-              <div className="aspect-video relative overflow-hidden">
-                <img
-                  src={item.imageUrl}
-                  alt={item.name}
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                />
-                <div className="absolute top-4 right-4 flex gap-2">
-                  <button
-                    onClick={() => {
-                      setEditingItem(item);
-                      setIsModalOpen(true);
-                    }}
-                    className="p-3 bg-black/60 backdrop-blur-md rounded-full text-white hover:bg-white hover:text-slate-950 transition-all"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(item.id)}
-                    className="p-3 bg-red-600/60 backdrop-blur-md rounded-full text-white hover:bg-red-600 transition-all"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+    <div className="min-h-screen bg-slate-950 text-white">
+      {/* Top Navbar */}
+      <nav className="fixed top-0 left-0 right-0 z-40 bg-slate-900/50 backdrop-blur-xl border-b border-white/5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-20">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-pink-500/20">
+                <LayoutDashboard className="w-6 h-6 text-white" />
               </div>
-              
-              <div className="p-6 space-y-4 flex-1">
-                <div>
-                  <h3 className="text-xl font-bold uppercase tracking-tight text-white">{item.name}</h3>
-                  <p className="text-slate-500 text-sm line-clamp-1 italic">"{item.description}"</p>
-                </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black text-pink-500 tracking-[0.2em] uppercase leading-none mb-1">TRASH OR TREASURE</span>
+                <h1 className="text-xl font-black italic tracking-tighter text-white leading-none">ADMIN PANEL</h1>
+              </div>
+            </div>
 
-                <div className="flex flex-col gap-3">
-                  <div className="bg-white/5 p-4 rounded-2xl border border-white/5 flex justify-between items-center group/aralik">
-                    <div>
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Tahmini Aralık</p>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className="text-sm font-black text-white">${formatPrice(Math.round(item.displayedValue * 0.8))}</p>
-                        <span className="text-slate-700">-</span>
-                        <p className="text-sm font-black text-white">${formatPrice(Math.round(item.displayedValue * 1.2))}</p>
+            <div className="flex items-center gap-6">
+              <div className="hidden md:flex flex-col items-end">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">SİSTEM DURUMU</span>
+                <span className="text-xs font-black text-green-500 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                  ÇEVRİMİÇİ
+                </span>
+              </div>
+              <button 
+                onClick={() => logout()}
+                className="p-3 bg-white/5 hover:bg-red-500/10 hover:text-red-500 rounded-2xl transition-all border border-white/5 group"
+                title="Çıkış Yap"
+              >
+                <LogOut className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 pb-20 space-y-12">
+        {/* Header & Controls */}
+        <div className="space-y-6">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div className="space-y-1">
+              <h2 className="text-3xl font-black italic uppercase tracking-tighter text-white">EŞYA KATALOĞU</h2>
+              <p className="text-slate-500 text-sm">Oyun içeriğini ve ipuçlarını buradan yönetin.</p>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <div className="relative w-full sm:w-80 group">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-pink-500 transition-colors" />
+                <input 
+                  type="text"
+                  placeholder="Eşya ara..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-slate-900/50 border border-white/10 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:border-pink-500 outline-none transition-all placeholder:text-slate-600 ring-0"
+                />
+              </div>
+              <button
+                onClick={() => {
+                  setEditingItem(null);
+                  setIsModalOpen(true);
+                }}
+                className="w-full sm:w-auto bg-white text-slate-950 px-8 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-pink-500 hover:text-white transition-all shadow-lg shadow-white/5 active:scale-95"
+              >
+                <Plus className="w-5 h-5" />
+                YENİ EŞYA
+              </button>
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div className="flex flex-col gap-6">
+            {/* Set Filter */}
+            <div className="flex flex-col gap-4">
+               <div className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                  <RefreshCw className="w-3 h-3" />
+                  OYNANIŞ SETİ FİLTRESİ
+               </div>
+               <div className="flex flex-wrap gap-2.5">
+                  {["HEPSİ", "SET_A", "SET_B", "SET_C"].map(set => (
+                    <button
+                      key={set}
+                      onClick={() => setSelectedSet(set)}
+                      className={`px-5 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all border ${
+                        selectedSet === set 
+                          ? "bg-green-500 text-white border-green-500 shadow-xl shadow-green-500/20" 
+                          : "bg-white/5 text-slate-400 border-white/5 hover:border-white/10 hover:text-white"
+                      }`}
+                    >
+                      {set === "HEPSİ" ? "TÜM SETLER" : set.replace("_", " ")}
+                    </button>
+                  ))}
+               </div>
+            </div>
+
+            {/* Category Filter */}
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                <Filter className="w-3 h-3" />
+                KATEGORİ FİLTRESİ
+              </div>
+              <div className="flex flex-wrap gap-2.5">
+              {CATEGORIES.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-5 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all border ${
+                    selectedCategory === cat 
+                      ? "bg-pink-500 text-white border-pink-500 shadow-xl shadow-pink-500/20" 
+                      : "bg-white/5 text-slate-400 border-white/5 hover:border-white/10 hover:text-white"
+                  }`}
+                >
+                  {cat.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+               <div className="h-px flex-1 bg-white/5" />
+               <p className="text-[10px] font-bold text-slate-600">
+                Toplam <span className="text-white">{initialItems.length}</span> / Gösterilen <span className="text-pink-500">{filteredItems.length}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        </div>
+
+        {/* Grid */}
+        <div className="min-h-[400px]">
+          {filteredItems.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <AnimatePresence mode="popLayout">
+                {filteredItems.map((item) => (
+                  <motion.div
+                    key={item.id}
+                    layout
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="bg-slate-900/40 border border-white/10 rounded-[2.5rem] overflow-hidden flex flex-col group hover:border-pink-500/50 transition-all duration-500 hover:shadow-2xl hover:shadow-pink-500/5"
+                  >
+                    <div className="aspect-video relative overflow-hidden">
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-60 group-hover:opacity-100 transition-opacity" />
+                      
+                      <div className="absolute top-4 left-4">
+                        <span className="px-3 py-1 bg-black/60 backdrop-blur-md rounded-full text-[10px] font-black tracking-widest text-white border border-white/10 outline outline-1 outline-white/5">
+                          {item.category?.toUpperCase() || "OTHER"}
+                        </span>
+                        <span className={`px-3 py-1 backdrop-blur-md rounded-full text-[10px] font-black tracking-widest text-white border border-white/10 outline outline-1 outline-white/5 ml-2 ${
+                            item.gameSet === "SET_A" ? "bg-green-500/60" :
+                            item.gameSet === "SET_B" ? "bg-blue-500/60" :
+                            "bg-purple-500/60"
+                        }`}>
+                          {item.gameSet || "SET_A"}
+                        </span>
+                      </div>
+
+                      <div className="absolute top-4 right-4 flex gap-2">
+                        <button
+                          onClick={() => {
+                            setEditingItem(item);
+                            setIsModalOpen(true);
+                          }}
+                          className="p-3 bg-black/60 backdrop-blur-md rounded-full text-white hover:bg-white hover:text-slate-950 transition-all active:scale-90"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          className="p-3 bg-red-600/60 backdrop-blur-md rounded-full text-white hover:bg-red-600 transition-all active:scale-90"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                  </div>
-                  <div className="bg-pink-500/10 p-4 rounded-2xl border border-pink-500/20 flex justify-between items-center">
-                    <div>
-                      <p className="text-[10px] font-black text-pink-500 uppercase tracking-widest mb-1">Reveal Değeri</p>
-                      <p className="text-xl font-black text-pink-400">${formatPrice(item.realValue)}</p>
+                    
+                    <div className="p-8 space-y-6 flex-1 flex flex-col">
+                      <div className="space-y-2">
+                        <h3 className="text-xl font-bold uppercase tracking-tight text-white leading-tight">{item.name}</h3>
+                        <p className="text-slate-500 text-sm line-clamp-2 italic font-medium leading-relaxed">"{item.description}"</p>
+                      </div>
+
+                      <div className="flex flex-col gap-3 mt-auto pt-4">
+                        <div className="bg-white/5 p-5 rounded-3xl border border-white/5 group/range">
+                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 flex justify-between">
+                            Tahmini Aralık
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-lg font-black text-white tracking-tighter">${formatPrice(Math.round(item.displayedValue * 0.8))}</p>
+                            <span className="text-slate-700 font-bold">-</span>
+                            <p className="text-lg font-black text-white tracking-tighter">${formatPrice(Math.round(item.displayedValue * 1.2))}</p>
+                          </div>
+                        </div>
+                        <div className="bg-pink-500/5 p-5 rounded-3xl border border-pink-500/20">
+                          <p className="text-[10px] font-black text-pink-500 uppercase tracking-widest mb-1">Gerçek Değeri</p>
+                          <p className="text-2xl font-black text-pink-400 font-mono tracking-tighter">${formatPrice(item.realValue)}</p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-32 bg-slate-900/20 border border-white/5 rounded-[3rem] text-center border-dashed">
+              <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-8 border border-white/5">
+                <Search className="w-10 h-10 text-slate-700" />
               </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
+              <h3 className="text-2xl font-black text-white mb-2 italic uppercase tracking-tighter underline underline-offset-8 decoration-pink-500/50">Eşya Bulunamadı</h3>
+              <p className="text-slate-500 mb-8 max-w-sm font-medium">Arama kriterlerinize uygun eşya bulunmuyor. Lütfen filtrelerinizi kontrol edin.</p>
+              <button 
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedCategory("HEPSİ");
+                }}
+                className="px-8 py-3 bg-white/5 hover:bg-white text-white hover:text-slate-950 font-black text-xs uppercase tracking-widest transition-all rounded-full border border-white/10"
+              >
+                Filtreleri Temizle
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Modal */}
@@ -139,47 +303,96 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsModalOpen(false)}
-              className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+              className="absolute inset-0 bg-slate-950/90 backdrop-blur-md"
             />
             
             <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-2xl bg-slate-900 border border-white/10 rounded-[3rem] shadow-2xl overflow-hidden"
+              className="relative w-full max-w-2xl bg-slate-900 border border-white/10 rounded-[3rem] shadow-[0_0_80px_rgba(0,0,0,0.8)] overflow-hidden"
             >
-              <div className="p-8 border-b border-white/5 flex justify-between items-center">
-                <h2 className="text-2xl font-black italic uppercase tracking-tighter bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-                  {editingItem ? "EŞYAYI DÜZENLE" : "YENİ EŞYA OLUŞTUR"}
-                </h2>
+              <div className="p-8 border-b border-white/5 flex justify-between items-center bg-slate-900/50">
+                <div className="flex items-center gap-4">
+                   <div className="w-10 h-10 bg-pink-500/10 rounded-xl flex items-center justify-center border border-pink-500/20">
+                      <Plus className="w-5 h-5 text-pink-500" />
+                   </div>
+                   <h2 className="text-2xl font-black italic uppercase tracking-tighter text-white">
+                    EŞYAYI <span className="text-pink-500">{editingItem ? "DÜZENLE" : "OLUŞTUR"}</span>
+                  </h2>
+                </div>
                 <button
                   onClick={() => setIsModalOpen(false)}
-                  className="p-2 hover:bg-white/10 rounded-full transition-all text-slate-400 hover:text-white"
+                  className="p-3 hover:bg-white/10 rounded-full transition-all text-slate-400 hover:text-white"
                 >
                   <X className="w-6 h-6" />
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-2">Eşya Adı</label>
-                    <input name="name" defaultValue={editingItem?.name} required className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 focus:border-pink-500 outline-none transition-all" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-2">Görsel URL</label>
-                    <input name="imageUrl" defaultValue={editingItem?.imageUrl} required className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 focus:border-pink-500 outline-none transition-all" />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-2">Açıklama</label>
-                  <textarea name="description" defaultValue={editingItem?.description} required rows={2} className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 focus:border-pink-500 outline-none transition-all resize-none" />
-                </div>
-
+              <form onSubmit={handleSubmit} className="p-10 space-y-8 max-h-[75vh] overflow-y-auto custom-scrollbar">
                 <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-2">Tahmini Baz Fiyat ($)</label>
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Eşya Adı</label>
+                    <input name="name" defaultValue={editingItem?.name} required className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:border-pink-500 outline-none transition-all placeholder:text-slate-700 text-sm font-medium" placeholder="Örn: Antika Vazo" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Kategori</label>
+                        <div className="relative">
+                        <select 
+                            name="category" 
+                            defaultValue={editingItem?.category || "History"} 
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:border-pink-500 outline-none transition-all appearance-none cursor-pointer text-sm font-black tracking-widest"
+                        >
+                            {CATEGORIES.filter(c => c !== "HEPSİ").map(c => (
+                            <option key={c} value={c} className="bg-slate-950 text-white pt-4">{c.toUpperCase()}</option>
+                            ))}
+                        </select>
+                        <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+                            <Filter className="w-4 h-4" />
+                        </div>
+                        </div>
+                    </div>
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Oynanış Seti</label>
+                        <div className="relative">
+                        <select 
+                            name="gameSet" 
+                            defaultValue={editingItem?.gameSet || "SET_A"} 
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:border-pink-500 outline-none transition-all appearance-none cursor-pointer text-sm font-black tracking-widest"
+                        >
+                            <option value="SET_A" className="bg-slate-950 text-white pt-4">SET A</option>
+                            <option value="SET_B" className="bg-slate-950 text-white pt-4">SET B</option>
+                            <option value="SET_C" className="bg-slate-950 text-white pt-4">SET C</option>
+                        </select>
+                        <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+                            <LayoutDashboard className="w-4 h-4" />
+                        </div>
+                        </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Görsel URL</label>
+                  <input name="imageUrl" defaultValue={editingItem?.imageUrl} required className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:border-pink-500 outline-none transition-all placeholder:text-slate-700 text-sm" placeholder="https://..." />
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Açıklama</label>
+                  <textarea 
+                    name="description" 
+                    defaultValue={editingItem?.description} 
+                    required 
+                    rows={3} 
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:border-pink-500 outline-none transition-all resize-none custom-scrollbar placeholder:text-slate-700 text-sm font-medium leading-relaxed" 
+                    placeholder="Eşyanın kısa hikayesi..."
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-8">
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Tahmini Baz Fiyat ($)</label>
                     <input 
                       type="number" 
                       name="displayedValue" 
@@ -192,48 +405,94 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
                         if (preview) preview.innerText = `$${formatPrice(min)} - $${formatPrice(max)}`;
                       }}
                       required 
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 focus:border-pink-500 outline-none transition-all" 
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:border-pink-500 outline-none transition-all placeholder:text-slate-700 font-bold"
+                      placeholder="30000"
                     />
-                    <p className="text-[10px] text-slate-600 font-bold px-2">
-                      OYUNCU GÖRÜNÜMÜ: <span id="range-preview" className="text-pink-500">
-                        ${formatPrice(Math.round((editingItem?.displayedValue || 0) * 0.8))} - ${formatPrice(Math.round((editingItem?.displayedValue || 0) * 1.2))}
+                    <p className="text-[9px] text-slate-600 font-black px-2 tracking-widest">
+                      GÖRÜNEN ARALIK: <span id="range-preview" className="text-pink-500">
+                        ${editingItem ? formatPrice(Math.round(editingItem.displayedValue * 0.8)) : "0"} - ${editingItem ? formatPrice(Math.round(editingItem.displayedValue * 1.2)) : "0"}
                       </span>
                     </p>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-2">Reveal Değeri (Gerçek) ($)</label>
-                    <input type="number" name="realValue" defaultValue={editingItem?.realValue} required className="w-full bg-slate-950 border border-pink-500/30 rounded-2xl px-4 py-3 focus:border-pink-500 outline-none transition-all text-pink-400 font-bold" />
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2 text-pink-500">Gerçek Değeri ($)</label>
+                    <input 
+                      type="number" 
+                      name="realValue" 
+                      defaultValue={editingItem?.realValue} 
+                      required 
+                      className="w-full bg-slate-950 border border-pink-500/30 rounded-2xl px-5 py-4 focus:border-pink-500 outline-none transition-all text-pink-400 font-bold text-lg" 
+                      placeholder="45000"
+                    />
                   </div>
                 </div>
 
-                <div className="space-y-4 pt-4 border-t border-white/5">
-                   <p className="text-sm font-black text-pink-500 uppercase tracking-widest mb-2 px-2">İSTİHBARAT BİLGİLERİ</p>
+                <div className="space-y-6 pt-10 border-t border-white/5">
+                   <div className="flex items-center gap-3 mb-4">
+                      <div className="h-px flex-1 bg-white/5" />
+                      <p className="text-[10px] font-black text-pink-500 uppercase tracking-[0.3em] whitespace-nowrap">İSTİHBARAT BİLGİLERİ</p>
+                      <div className="h-px flex-1 bg-white/5" />
+                   </div>
                    
-                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-green-500 uppercase tracking-widest px-2 flex items-center gap-1">
-                       <Plus className="w-3 h-3" /> Olumlu İpucu
+                   <div className="space-y-3">
+                    <label className="text-[10px] font-black text-green-500 uppercase tracking-widest px-2 flex items-center gap-2">
+                       <span className="w-5 h-5 rounded-lg bg-green-500/10 flex items-center justify-center text-[10px] border border-green-500/20">+</span>
+                       Olumlu İpucu
                     </label>
-                    <input name="intelGood" defaultValue={editingItem?.intelGood} required className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 focus:border-pink-500 outline-none transition-all text-sm" />
+                    <textarea 
+                      name="intelGood" 
+                      defaultValue={editingItem?.intelGood} 
+                      required 
+                      rows={2}
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:border-pink-500 outline-none transition-all text-sm italic font-medium resize-none custom-scrollbar leading-relaxed" 
+                    />
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-red-500 uppercase tracking-widest px-2 flex items-center gap-1">
-                       <X className="w-3 h-3" /> Olumsuz İpucu
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-red-500 uppercase tracking-widest px-2 flex items-center gap-2">
+                       <span className="w-5 h-5 rounded-lg bg-red-500/10 flex items-center justify-center text-[10px] border border-red-500/20">×</span>
+                       Olumsuz İpucu
                     </label>
-                    <input name="intelBad" defaultValue={editingItem?.intelBad} required className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 focus:border-pink-500 outline-none transition-all text-sm" />
+                    <textarea 
+                      name="intelBad" 
+                      defaultValue={editingItem?.intelBad} 
+                      required 
+                      rows={2}
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:border-pink-500 outline-none transition-all text-sm italic font-medium resize-none custom-scrollbar leading-relaxed" 
+                    />
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-purple-500 uppercase tracking-widest px-2 flex items-center gap-1">
-                       <Eye className="w-3 h-3" /> Gizli Gerçek
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-purple-500 uppercase tracking-widest px-2 flex items-center gap-2">
+                       <div className="w-5 h-5 rounded-lg bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
+                          <Eye className="w-3 h-3" />
+                       </div>
+                       Gizli Gerçek
                     </label>
-                    <input name="intelSecret" defaultValue={editingItem?.intelSecret} required className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 focus:border-pink-500 outline-none transition-all text-sm" />
+                    <textarea 
+                      name="intelSecret" 
+                      defaultValue={editingItem?.intelSecret} 
+                      required 
+                      rows={2}
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:border-pink-500 outline-none transition-all text-sm italic font-medium resize-none custom-scrollbar leading-relaxed" 
+                    />
                   </div>
                 </div>
 
-                <div className="pt-6">
-                  <button type="submit" className="w-full bg-gradient-to-r from-pink-600 to-purple-600 text-white py-5 rounded-[2rem] font-black text-xl hover:from-pink-500 hover:to-purple-500 transition-all shadow-xl shadow-pink-500/20 active:scale-[0.98]">
-                    {editingItem ? "GÜNCELLEMEYİ KAYDET" : "EŞYAYI KATALOĞA EKLE"}
+                <div className="pt-6 flex gap-4 sticky bottom-0 bg-slate-900/50 backdrop-blur-xl p-4 -mx-10 border-t border-white/5">
+                  <button 
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="flex-1 bg-white/5 text-white py-4.5 rounded-2xl font-black text-xs hover:bg-white/10 transition-all uppercase tracking-widest border border-white/5"
+                  >
+                    İptal
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="flex-[2] bg-gradient-to-r from-pink-600 to-pink-500 text-white py-4.5 rounded-2xl font-black text-xs hover:from-pink-500 hover:to-pink-400 transition-all uppercase tracking-widest shadow-xl shadow-pink-500/20 flex items-center justify-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    {editingItem ? "KAYDET" : "EKLE"}
                   </button>
                 </div>
               </form>
@@ -244,7 +503,7 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {
-          width: 8px;
+          width: 6px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
           background: rgba(255, 255, 255, 0.02);
@@ -257,7 +516,13 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
           background: rgba(255, 255, 255, 0.2);
         }
+        select option {
+            background: #020617;
+            color: white;
+            padding: 10px;
+        }
       `}</style>
     </div>
   );
 }
+
