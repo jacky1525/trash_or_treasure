@@ -17,9 +17,9 @@ model Item {
   realValue       Int
   category        String   @default("Other")
   gameSet         String   @default("SET_A") // SET_A, SET_B, SET_C
-  intelGood       String?  // Positive info
-  intelBad        String   // Negative info
-  intelSecret     String   // The real "truth"
+  isTreasure      Boolean  @default(false)
+  publicRumor     String   @default("")
+  intelPool       Json     @default("[]")
   createdAt       DateTime @default(now())
 }
 

@@ -162,6 +162,7 @@ app.prepare().then(() => {
                 state: room.state,
                 players: room.players,
                 currentItem: room.currentItem,
+                revealData: room.state === "REVEAL" ? room.revealData : null,
                 round: room.round,
                 maxRounds: room.maxRounds,
                 soldHistory: room.soldHistory,
@@ -169,6 +170,35 @@ app.prepare().then(() => {
                 items: room.items.map(i => i.name), // Just names for security if needed
                 highestBidder: room.highestBidder
             });
+        });
+
+        socket.on("reset-session", ({ roomCode, hostId }) => {
+            if (rooms[roomCode] && (rooms[roomCode].host === socket.id || rooms[roomCode].hostId === hostId)) {
+                const room = rooms[roomCode];
+                room.state = "LOBBY";
+                room.round = 1;
+                room.currentItem = null;
+                room.items = [];
+                room.readyPlayers.clear();
+                room.bidHistory = [];
+                room.soldHistory = [];
+                room.currentBid = 0;
+                room.highestBidder = null;
+                room.revealData = null;
+
+                // Reset player balances and states
+                room.players.forEach(p => {
+                    p.balance = 500000;
+                    p.inventory = [];
+                    p.intel = null;
+                });
+
+                io.to(roomCode).emit("session-reset", {
+                    state: room.state,
+                    players: room.players
+                });
+                console.log(`[RESET] Room ${roomCode} reset to lobby by host.`);
+            }
         });
 
         socket.on("start-game", async (roomCode, settings) => {
@@ -263,29 +293,14 @@ app.prepare().then(() => {
             room.bidHistory = [];
             room.readyPlayers.clear();
 
-            // Distribute intel
+            // Distribute initial intel (Public Rumor)
             const players = room.players;
-            players.forEach((player, index) => {
-                let intel = "Hiçbir bilgin yok.";
-                const type = index % 5;
-
-                if (type === 0) intel = randomItem.intelGood;
-                if (type === 1) intel = randomItem.intelBad;
-                if (type === 2) intel = randomItem.intelSecret;
-                if (type === 3) {
-                    const accuracy = Math.random() > 0.5 ? "yüksek" : "düşük";
-                    intel = `Bu eşyanın gerçek değeri tahmin edilen aralıkta olma ihtimali ${accuracy}.`;
-                }
-                if (type === 4) {
-                    const isTrustworthy = Math.random() > 0.3;
-                    const fakePrice = Math.round(realValue * (0.2 + Math.random()));
-                    intel = isTrustworthy
-                        ? `Güvenilir kaynaklar eşyanın gerçek değerinin ${realValue} civarında olduğunu söylüyor.`
-                        : `Sokaktaki dedikodulara göre bu eşya en fazla ${fakePrice}$ eder.`;
-                }
-
-                player.intel = intel;
-                io.to(player.id).emit("receive-intel", intel);
+            players.forEach((player) => {
+                player.intel = []; // Reset bought intel for the new round
+                io.to(player.id).emit("receive-intel", {
+                    publicRumor: randomItem.publicRumor,
+                    purchased: []
+                });
             });
 
             io.to(roomCode).emit("round-started", {
@@ -355,6 +370,76 @@ app.prepare().then(() => {
             }
         });
 
+        socket.on("buy-intel", ({ roomCode }) => {
+            const room = rooms[roomCode];
+            if (!room || (room.state !== "INTEL_PHASE" && room.state !== "BIDDING")) return;
+
+            const player = room.players.find(p => p.id === socket.id);
+            if (!player) return;
+
+            const boughtCount = player.intel.length;
+            if (boughtCount >= 3) return;
+
+            const costs = [500, 2500, 5000];
+            const cost = costs[boughtCount];
+
+            if (player.balance < cost) {
+                socket.emit("error-msg", "Yetersiz bakiye!");
+                return;
+            }
+
+            // Randomize based on weights
+            const pool = room.currentItem.intelPool || [];
+            if (pool.length === 0) {
+                socket.emit("error-msg", "Bu eşya için daha fazla istihbarat yok.");
+                return;
+            }
+
+            // Filter out already owned
+            const ownedIds = player.intel.map(i => i.id);
+            const available = pool.filter(i => !ownedIds.includes(i.id));
+
+            if (available.length === 0) {
+                socket.emit("error-msg", "Bu eşya için tüm istihbaratı aldın!");
+                return;
+            }
+
+            const rand = Math.random() * 100;
+            let targetRarity = "common";
+            if (rand < 15) targetRarity = "legendary";
+            else if (rand < 50) targetRarity = "rare"; // 15 to 50 = 35%
+            else targetRarity = "common"; // 50 to 100 = 50%
+
+            // Try to find one of that rarity
+            let candidates = available.filter(i => i.rarity === targetRarity);
+
+            // Fallback if that rarity is exhausted
+            if (candidates.length === 0) {
+                candidates = available;
+            }
+
+            const picked = candidates[Math.floor(Math.random() * candidates.length)];
+
+            player.balance -= cost;
+            player.intel.push(picked);
+
+            // Notify player and host (host needs balance update)
+            socket.emit("receive-intel", {
+                publicRumor: room.currentItem.publicRumor,
+                purchased: player.intel,
+                newBalance: player.balance
+            });
+
+            io.to(roomCode).emit("bid-updated", {
+                currentBid: room.currentBid,
+                highestBidder: room.highestBidder?.name || "",
+                bidHistory: room.bidHistory,
+                players: room.players
+            });
+
+            console.log(`[INTEL] ${player.name} bought ${picked.rarity} intel for $${cost}`);
+        });
+
         function finishBidding(roomCode) {
             const room = rooms[roomCode];
             room.state = "REVEAL";
@@ -367,6 +452,14 @@ app.prepare().then(() => {
                 winner.inventory.push(room.currentItem);
                 const profit = room.currentItem.realValue - room.currentBid;
 
+                const revealData = {
+                    winner: winner.name,
+                    price: room.currentBid,
+                    realValue: room.currentItem.realValue,
+                    profit: profit,
+                    newBalance: winner.balance
+                };
+
                 const soldData = {
                     item: room.currentItem,
                     winner: winner.name,
@@ -376,16 +469,18 @@ app.prepare().then(() => {
                     success: true
                 };
                 room.soldHistory.push(soldData);
+                room.revealData = revealData;
                 console.log(`[DEBUG] Item added to history. Total count: ${room.soldHistory.length}`);
 
-                io.to(roomCode).emit("item-sold", {
-                    winner: winner.name,
-                    price: room.currentBid,
-                    realValue: room.currentItem.realValue,
-                    profit: profit,
-                    newBalance: winner.balance
-                });
+                io.to(roomCode).emit("item-sold", revealData);
             } else {
+                const revealData = {
+                    winner: "KİMSE",
+                    price: 0,
+                    realValue: room.currentItem.realValue,
+                    profit: 0
+                };
+
                 const soldData = {
                     item: room.currentItem,
                     winner: "KİMSE",
@@ -395,13 +490,9 @@ app.prepare().then(() => {
                     success: false
                 };
                 room.soldHistory.push(soldData);
+                room.revealData = revealData;
 
-                io.to(roomCode).emit("item-sold", {
-                    winner: "KİMSE",
-                    price: 0,
-                    realValue: room.currentItem.realValue,
-                    profit: 0
-                });
+                io.to(roomCode).emit("item-sold", revealData);
             }
 
             room.readyPlayers.clear();

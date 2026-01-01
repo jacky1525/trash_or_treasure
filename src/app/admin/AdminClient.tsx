@@ -5,6 +5,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Pencil, Trash2, X, Search, Image as ImageIcon, DollarSign, Eye, Filter, LogOut, LayoutDashboard, Save, RefreshCw } from "lucide-react";
 import { createItem, deleteItem, updateItem, logout } from "./actions";
 
+interface IntelPiece {
+  id: number;
+  text: string;
+  rarity: "common" | "rare" | "legendary";
+}
+
 interface Item {
   id: string;
   name: string;
@@ -14,9 +20,9 @@ interface Item {
   realValue: number;
   category: string;
   gameSet: string;
-  intelGood: string;
-  intelBad: string;
-  intelSecret: string;
+  isTreasure: boolean;
+  publicRumor: string;
+  intelPool: IntelPiece[] | string; // Can be string coming from DB initially
 }
 
 const CATEGORIES = ["HEPSİ", "History", "Pop-Culture", "Luxury", "Art", "Tech"];
@@ -33,9 +39,50 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
   const [selectedCategory, setSelectedCategory] = useState("HEPSİ");
   const [selectedSet, setSelectedSet] = useState("HEPSİ");
 
+  // New state for intel pool editor
+  const [intelPool, setIntelPool] = useState<IntelPiece[]>([]);
+  const [newIntelText, setNewIntelText] = useState("");
+  const [newIntelRarity, setNewIntelRarity] = useState<"common" | "rare" | "legendary">("common");
+
+  // Reset intel pool when opening modal
+  useMemo(() => {
+    if (editingItem && editingItem.intelPool) {
+      if (typeof editingItem.intelPool === 'string') {
+          try {
+              setIntelPool(JSON.parse(editingItem.intelPool));
+          } catch(e) {
+              setIntelPool([]);
+          }
+      } else {
+        setIntelPool(editingItem.intelPool as any);
+      }
+    } else {
+      setIntelPool([]);
+    }
+  }, [editingItem]);
+
+  const addIntel = () => {
+    if (!newIntelText.trim()) return;
+    const newPiece: IntelPiece = {
+      id: Date.now(),
+      text: newIntelText,
+      rarity: newIntelRarity
+    };
+    setIntelPool([...intelPool, newPiece]);
+    setNewIntelText("");
+  };
+
+  const removeIntel = (id: number) => {
+    setIntelPool(intelPool.filter(i => i.id !== id));
+  };
+
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    
+    // Append structured intel pool as JSON string
+    formData.set('intelPool', JSON.stringify(intelPool));
 
     if (editingItem) {
       await updateItem(editingItem.id, formData);
@@ -126,6 +173,7 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
                 onClick={() => {
                   setEditingItem(null);
                   setIsModalOpen(true);
+                  setIntelPool([]);
                 }}
                 className="w-full sm:w-auto bg-white text-slate-950 px-8 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-pink-500 hover:text-white transition-all shadow-lg shadow-white/5 active:scale-95"
               >
@@ -214,11 +262,11 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-60 group-hover:opacity-100 transition-opacity" />
                       
-                      <div className="absolute top-4 left-4">
+                      <div className="absolute top-4 left-4 flex gap-2">
                         <span className="px-3 py-1 bg-black/60 backdrop-blur-md rounded-full text-[10px] font-black tracking-widest text-white border border-white/10 outline outline-1 outline-white/5">
                           {item.category?.toUpperCase() || "OTHER"}
                         </span>
-                        <span className={`px-3 py-1 backdrop-blur-md rounded-full text-[10px] font-black tracking-widest text-white border border-white/10 outline outline-1 outline-white/5 ml-2 ${
+                         <span className={`px-3 py-1 backdrop-blur-md rounded-full text-[10px] font-black tracking-widest text-white border border-white/10 outline outline-1 outline-white/5 ${
                             item.gameSet === "SET_A" ? "bg-green-500/60" :
                             item.gameSet === "SET_B" ? "bg-blue-500/60" :
                             "bg-purple-500/60"
@@ -226,6 +274,14 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
                           {item.gameSet || "SET_A"}
                         </span>
                       </div>
+                      
+                      {item.isTreasure && (
+                         <div className="absolute bottom-4 left-4">
+                            <span className="px-3 py-1 bg-yellow-500/20 backdrop-blur-md rounded-full text-[10px] font-black tracking-widest text-yellow-500 border border-yellow-500/40 shadow-lg shadow-yellow-500/20 flex items-center gap-1.5">
+                               ✨ HAZİNE
+                            </span>
+                         </div>
+                      )}
 
                       <div className="absolute top-4 right-4 flex gap-2">
                         <button
@@ -373,9 +429,18 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Görsel URL</label>
-                  <input name="imageUrl" defaultValue={editingItem?.imageUrl} required className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:border-pink-500 outline-none transition-all placeholder:text-slate-700 text-sm" placeholder="https://..." />
+                <div className="flex gap-4">
+                    <div className="flex-1 space-y-3">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Görsel URL</label>
+                        <input name="imageUrl" defaultValue={editingItem?.imageUrl} required className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:border-pink-500 outline-none transition-all placeholder:text-slate-700 text-sm" placeholder="https://..." />
+                    </div>
+                     <div className="w-1/4 space-y-3">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Hazine Mi?</label>
+                        <label className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 flex items-center justify-between cursor-pointer hover:bg-white/10 transition-colors">
+                            <span className="text-xs font-bold text-white">HAZİNE</span>
+                            <input type="checkbox" name="isTreasure" defaultChecked={editingItem?.isTreasure} className="w-5 h-5 accent-pink-500" />
+                        </label>
+                    </div>
                 </div>
 
                 <div className="space-y-3">
@@ -430,52 +495,85 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
                 <div className="space-y-6 pt-10 border-t border-white/5">
                    <div className="flex items-center gap-3 mb-4">
                       <div className="h-px flex-1 bg-white/5" />
-                      <p className="text-[10px] font-black text-pink-500 uppercase tracking-[0.3em] whitespace-nowrap">İSTİHBARAT BİLGİLERİ</p>
+                      <p className="text-[10px] font-black text-pink-500 uppercase tracking-[0.3em] whitespace-nowrap">İSTİHBARAT SİSTEMİ</p>
                       <div className="h-px flex-1 bg-white/5" />
                    </div>
                    
                    <div className="space-y-3">
-                    <label className="text-[10px] font-black text-green-500 uppercase tracking-widest px-2 flex items-center gap-2">
-                       <span className="w-5 h-5 rounded-lg bg-green-500/10 flex items-center justify-center text-[10px] border border-green-500/20">+</span>
-                       Olumlu İpucu
+                    <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest px-2 flex items-center gap-2">
+                       <span className="w-5 h-5 rounded-lg bg-blue-500/10 flex items-center justify-center text-[10px] border border-blue-500/20">i</span>
+                       Kamuoyu Fısıltısı (Public Rumor)
                     </label>
                     <textarea 
-                      name="intelGood" 
-                      defaultValue={editingItem?.intelGood} 
+                      name="publicRumor" 
+                      defaultValue={editingItem?.publicRumor} 
                       required 
                       rows={2}
+                      placeholder="Herkesin bildiği o dedikodu..."
                       className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:border-pink-500 outline-none transition-all text-sm italic font-medium resize-none custom-scrollbar leading-relaxed" 
                     />
                   </div>
 
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-red-500 uppercase tracking-widest px-2 flex items-center gap-2">
-                       <span className="w-5 h-5 rounded-lg bg-red-500/10 flex items-center justify-center text-[10px] border border-red-500/20">×</span>
-                       Olumsuz İpucu
-                    </label>
-                    <textarea 
-                      name="intelBad" 
-                      defaultValue={editingItem?.intelBad} 
-                      required 
-                      rows={2}
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:border-pink-500 outline-none transition-all text-sm italic font-medium resize-none custom-scrollbar leading-relaxed" 
-                    />
-                  </div>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-black text-purple-500 uppercase tracking-widest px-2 flex items-center gap-2">
+                            <Eye className="w-4 h-4" />
+                            İstihbarat Havuzu ({intelPool.length})
+                        </label>
+                    </div>
 
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-purple-500 uppercase tracking-widest px-2 flex items-center gap-2">
-                       <div className="w-5 h-5 rounded-lg bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
-                          <Eye className="w-3 h-3" />
-                       </div>
-                       Gizli Gerçek
-                    </label>
-                    <textarea 
-                      name="intelSecret" 
-                      defaultValue={editingItem?.intelSecret} 
-                      required 
-                      rows={2}
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:border-pink-500 outline-none transition-all text-sm italic font-medium resize-none custom-scrollbar leading-relaxed" 
-                    />
+                    <div className="bg-slate-950/50 rounded-3xl border border-white/5 p-4 space-y-4">
+                        <div className="flex gap-2">
+                             <select 
+                                value={newIntelRarity}
+                                onChange={(e) => setNewIntelRarity(e.target.value as any)}
+                                className="bg-white/5 border border-white/10 rounded-xl px-3 text-xs font-bold uppercase tracking-wider outline-none focus:border-white/20"
+                             >
+                                <option className="bg-slate-900 text-slate-400" value="common">Common</option>
+                                <option className="bg-slate-900 text-purple-400" value="rare">Rare</option>
+                                <option className="bg-slate-900 text-yellow-400" value="legendary">Legend</option>
+                             </select>
+                             <input 
+                                value={newIntelText}
+                                onChange={(e) => setNewIntelText(e.target.value)}
+                                placeholder="Yeni bir ipucu ekle..."
+                                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-pink-500 transition-all font-medium"
+                                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addIntel())}
+                             />
+                             <button 
+                                type="button"
+                                onClick={addIntel}
+                                className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-xl transition-all"
+                             >
+                                <Plus className="w-5 h-5" />
+                             </button>
+                        </div>
+
+                        <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+                            {intelPool.map((intel) => (
+                                <div key={intel.id} className="flex gap-3 items-start p-3 bg-white/5 rounded-xl border border-white/5 group">
+                                     <span className={`text-[9px] font-black px-2 py-1 rounded bg-black/40 uppercase tracking-wider mt-0.5 ${
+                                        intel.rarity === 'common' ? 'text-slate-400 border border-slate-700' :
+                                        intel.rarity === 'rare' ? 'text-purple-400 border border-purple-500/40' :
+                                        'text-yellow-400 border border-yellow-500/40'
+                                     }`}>
+                                        {intel.rarity.substring(0,3)}
+                                     </span>
+                                     <p className="text-xs text-slate-300 flex-1 leading-relaxed font-medium">{intel.text}</p>
+                                     <button 
+                                        type="button" 
+                                        onClick={() => removeIntel(intel.id)}
+                                        className="text-slate-600 hover:text-red-500 transition-colors"
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                     </button>
+                                </div>
+                            ))}
+                            {intelPool.length === 0 && (
+                                <p className="text-center text-xs text-slate-600 italic py-4">Henüz hiç ipucu eklenmedi.</p>
+                            )}
+                        </div>
+                    </div>
                   </div>
                 </div>
 

@@ -80,11 +80,25 @@ export default function HostPage() {
       setPlayers(data.players || []);
       setGameState(data.state || "LOBBY");
       if (data.currentItem) setCurrentItem(data.currentItem);
+      if (data.revealData) setRevealData(data.revealData);
       if (data.round) setRound(data.round);
       if (data.maxRounds) setGameOptions(prev => ({ ...prev, maxRounds: data.maxRounds }));
       if (data.soldHistory) setSoldHistory(data.soldHistory);
       if (data.currentBid !== undefined) setCurrentBid(data.currentBid);
       if (data.highestBidder) setHighestBidder(data.highestBidder);
+    });
+
+    socket.on("session-reset", () => {
+      setGameState("LOBBY");
+      setRound(1);
+      setCurrentItem(null);
+      setRevealData(null);
+      setSoldHistory([]);
+      setCurrentBid(0);
+      setHighestBidder("");
+      setBidHistory([]);
+      setReadyPlayers([]);
+      setReadyTotal({ ready: 0, total: 0 });
     });
 
     socket.on("error-msg", (msg) => {
@@ -108,19 +122,19 @@ export default function HostPage() {
       setBidHistory([]);
       setReadyPlayers([]);
       setReadyTotal({ ready: 0, total: 0 });
-      soundManager.play("transition", { volume: 0.3 });
+      soundManager.play("transition", { volume: 0.1 });
     });
 
     socket.on("bidding-started", (data) => {
       setGameState("BIDDING");
       if (data?.duration) setTotalDuration(data.duration);
-      soundManager.play("transition", { volume: 0.5, pitch: 1.2 });
+      soundManager.play("transition", { volume: 0.2, pitch: 1.2 });
     });
 
     socket.on("timer-update", (time) => {
       setTimeLeft(time);
       if (time <= 5 && time > 0) {
-        soundManager.play("heartbeat", { volume: 0.8 });
+        soundManager.play("heartbeat", { volume: 0.25 });
       }
     });
 
@@ -128,7 +142,7 @@ export default function HostPage() {
       // Sound trigger for new bid with pitch shifting
       // Pitch ranges from 1.0 to 2.0 based on bid history length or price
       const pitch = Math.min(2, 1 + (bidHistory?.length || 0) * 0.05);
-      soundManager.play("bid", { volume: 0.6, pitch });
+      soundManager.play("bid", { volume: 0.2, pitch });
 
       setCurrentBid(currentBid);
       setHighestBidder(highestBidder);
@@ -144,13 +158,13 @@ export default function HostPage() {
       soundManager.stop("heartbeat");
 
       // Play sold sound
-      soundManager.play("sold", { volume: 0.9 });
+      soundManager.play("sold", { volume: 0.5 });
 
       // Play profit/loss sound
       if (data.profit > 0) {
-        soundManager.play("jackpot", { volume: 0.7 });
+        soundManager.play("jackpot", { volume: 0.2 });
       } else if (data.profit < 0) {
-        soundManager.play("scam", { volume: 0.7 });
+        soundManager.play("scam", { volume: 0.3 });
       }
     });
 
@@ -1260,7 +1274,7 @@ export default function HostPage() {
 
             <div className="flex gap-4">
                <button 
-                  onClick={() => window.location.reload()} 
+                  onClick={() => socket.emit("reset-session", { roomCode, hostId })} 
                   className="bg-white text-slate-950 px-10 py-5 rounded-sm font-black text-sm hover:bg-pink-500 hover:text-white transition-all shadow-xl group flex items-center gap-3 uppercase tracking-widest"
                >
                   <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
@@ -1317,7 +1331,7 @@ export default function HostPage() {
                               className="w-full h-full object-contain p-4 opacity-80 group-hover:scale-110 transition-transform duration-700"
                             />
                             <div className="absolute top-2 left-2 bg-red-600 text-white text-[8px] font-black px-2 py-0.5 rounded-sm uppercase tracking-widest">
-                              KANIT #{fileId}
+                              #{fileId}
                             </div>
                          </div>
 

@@ -43,10 +43,11 @@ export async function createItem(formData: FormData) {
     const imageUrl = formData.get("imageUrl") as string;
     const displayedValue = parseInt(formData.get("displayedValue") as string);
     const realValue = parseInt(formData.get("realValue") as string);
-    const intelGood = formData.get("intelGood") as string;
-    const intelBad = formData.get("intelBad") as string;
-    const intelSecret = formData.get("intelSecret") as string;
     const category = formData.get("category") as string || "Other";
+    const gameSet = formData.get("gameSet") as string || "SET_A";
+    const isTreasure = formData.get("isTreasure") === "on";
+    const publicRumor = formData.get("publicRumor") as string;
+    const intelPool = JSON.parse(formData.get("intelPool") as string || "[]");
 
     await prisma.item.create({
         data: {
@@ -55,10 +56,11 @@ export async function createItem(formData: FormData) {
             imageUrl,
             displayedValue,
             realValue,
-            intelGood,
-            intelBad,
-            intelSecret,
             category,
+            gameSet,
+            isTreasure,
+            publicRumor,
+            intelPool,
         },
     });
 
@@ -78,10 +80,11 @@ export async function updateItem(id: string, formData: FormData) {
     const imageUrl = formData.get("imageUrl") as string;
     const displayedValue = parseInt(formData.get("displayedValue") as string);
     const realValue = parseInt(formData.get("realValue") as string);
-    const intelGood = formData.get("intelGood") as string;
-    const intelBad = formData.get("intelBad") as string;
-    const intelSecret = formData.get("intelSecret") as string;
     const category = formData.get("category") as string || "Other";
+    const gameSet = formData.get("gameSet") as string || "SET_A";
+    const isTreasure = formData.get("isTreasure") === "on";
+    const publicRumor = formData.get("publicRumor") as string;
+    const intelPool = JSON.parse(formData.get("intelPool") as string || "[]");
 
     await prisma.item.update({
         where: { id },
@@ -91,10 +94,11 @@ export async function updateItem(id: string, formData: FormData) {
             imageUrl,
             displayedValue,
             realValue,
-            intelGood,
-            intelBad,
-            intelSecret,
             category,
+            gameSet,
+            isTreasure,
+            publicRumor,
+            intelPool,
         },
     });
 

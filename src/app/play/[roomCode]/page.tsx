@@ -18,12 +18,16 @@ export default function PlayerPage() {
   const [playerId, setPlayerId] = useState("");
   const [error, setError] = useState("");
   const [gameState, setGameState] = useState("LOBBY");
-  const [intel, setIntel] = useState("");
+  const [intel, setIntel] = useState<{ publicRumor: string; purchased: any[] }>({
+    publicRumor: "",
+    purchased: []
+  });
   const [balance, setBalance] = useState(500000);
   const [currentBid, setCurrentBid] = useState(0);
   const [highestBidder, setHighestBidder] = useState("");
   const [feedback, setFeedback] = useState<"leading" | "outbid" | null>(null);
   const [readyPlayers, setReadyPlayers] = useState<string[]>([]);
+  const [totalPlayers, setTotalPlayers] = useState(0);
   const [isReady, setIsReady] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [currentItem, setCurrentItem] = useState<any>(null);
@@ -64,7 +68,10 @@ export default function PlayerPage() {
       setIsJoined(true);
       if (data.player) {
          setBalance(data.player.balance);
-         if (data.player.intel) setIntel(data.player.intel);
+         if (data.player.intel) {
+            // For initial join, we might only have purchased list if round already started
+            setIntel(prev => ({ ...prev, purchased: Array.isArray(data.player.intel) ? data.player.intel : [] }));
+         }
       }
       if (data.state) setGameState(data.state);
       if (data.currentItem) setCurrentItem(data.currentItem);
@@ -80,34 +87,56 @@ export default function PlayerPage() {
       setIsJoined(true);
       
       const myPlayer = data.players.find((p: any) => p.playerId === stId);
-      if (myPlayer?.intel) setIntel(myPlayer.intel);
+      if (myPlayer?.intel) {
+          setIntel({
+            publicRumor: data.currentItem?.publicRumor || "",
+            purchased: Array.isArray(myPlayer.intel) ? myPlayer.intel : []
+          });
+       } else {
+          setIntel({
+            publicRumor: data.currentItem?.publicRumor || "",
+            purchased: []
+          });
+       }
+      setTotalPlayers(data.players.length);
     });
 
     socket.on("timer-update", (time) => {
       setTimeLeft(time);
-      if (time <= 5 && time > 0) {
-        soundManager.play("heartbeat", { volume: 0.5 });
-      }
     });
 
     socket.on("round-started", ({ item }) => {
       setCurrentItem(item);
-    });
-
-    socket.on("receive-intel", (data) => {
-      setIntel(data);
       setGameState("INTEL_PHASE");
       setCurrentBid(0);
       setHighestBidder("");
       setFeedback(null);
       setIsReady(false);
       setReadyPlayers([]);
-      soundManager.play("transition", { volume: 0.3 });
+    });
+
+    socket.on("receive-intel", (data) => {
+      setIntel({
+        publicRumor: data.publicRumor || "",
+        purchased: Array.isArray(data.purchased) ? data.purchased : []
+      });
+      if (data.newBalance !== undefined) setBalance(data.newBalance);
+    });
+
+    socket.on("session-reset", () => {
+      setGameState("LOBBY");
+      setRound(1);
+      setIntel({ publicRumor: "", purchased: [] });
+      setCurrentBid(0);
+      setHighestBidder("");
+      setFeedback(null);
+      setIsReady(false);
+      setReadyPlayers([]);
+      setCurrentItem(null);
     });
 
     socket.on("bidding-started", () => {
       setGameState("BIDDING");
-      soundManager.play("transition", { volume: 0.4, pitch: 1.2 });
     });
 
     socket.on("bid-updated", ({ currentBid, highestBidder }) => {
@@ -118,11 +147,11 @@ export default function PlayerPage() {
       
       if (wasHighest) {
         setFeedback("leading");
-        soundManager.play("bid", { volume: 0.4, pitch: 1.2 });
+        soundManager.play("bid", { volume: 0.15, pitch: 1.2 });
         setTimeout(() => setFeedback(null), 500);
       } else if (isOutbid) {
         setFeedback("outbid");
-        soundManager.play("bid", { volume: 0.3, pitch: 0.8 });
+        soundManager.play("bid", { volume: 0.1, pitch: 0.8 });
         // Haptic Feedback
         if (typeof navigator !== "undefined" && navigator.vibrate) {
            navigator.vibrate([100, 50, 100]);
@@ -136,18 +165,12 @@ export default function PlayerPage() {
     socket.on("item-sold", (data) => {
       setGameState("REVEAL");
       
-      // Stop heartbeat immediately
-      soundManager.stop("heartbeat");
-
-      soundManager.play("sold", { volume: 0.8 });
-      
       if (data.winner === playerName) {
         if (data.newBalance !== undefined) {
           setBalance(data.newBalance);
         } else {
           setBalance((prev) => prev - data.price);
         }
-        soundManager.play("jackpot", { volume: 0.7 });
       } else if (highestBidder === playerName) {
          // I was the highest bidder but someone else won (wait, this shouldn't happen based on server logic)
       }
@@ -156,13 +179,13 @@ export default function PlayerPage() {
       setIsReady(false);
     });
 
-    socket.on("ready-update", ({ readyPlayers }) => {
+    socket.on("ready-update", ({ readyPlayers, totalCount }) => {
       setReadyPlayers(readyPlayers);
+      if (totalCount) setTotalPlayers(totalCount);
     });
 
     socket.on("game-over", (data) => {
       setGameState("GAME_OVER");
-      soundManager.play("jackpot", { volume: 1 });
       const playersList = Array.isArray(data) ? data : data.players;
       const me = playersList.find((p: any) => p.name === playerName);
       if (me) setBalance(me.balance);
@@ -205,7 +228,16 @@ export default function PlayerPage() {
   };
 
   const placeBid = (amount: number) => {
+    if (gameState !== "BIDDING") return;
+    
+    const bidAmount = currentBid + amount;
+    if (balance < bidAmount) return;
+    
     socket.emit("place-bid", { roomCode: roomCode.toUpperCase(), amount });
+  };
+
+  const buyIntel = () => {
+    socket.emit("buy-intel", { roomCode: roomCode.toUpperCase() });
   };
 
   const readyUp = () => {
@@ -280,7 +312,7 @@ export default function PlayerPage() {
             </motion.div>
           )}
 
-          {gameState === "BIDDING" && (
+          {(gameState === "BIDDING" || gameState === "INTEL_PHASE") && (
             <div className="space-y-4 sm:space-y-6 flex flex-col">
               {/* 2. ITEM STATUS BANNER */}
               <div 
@@ -291,7 +323,7 @@ export default function PlayerPage() {
                     <h3 className="text-lg sm:text-2xl font-black text-white italic leading-tight truncate">{currentItem?.name}</h3>
                   </div>
                   <p className="text-[9px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">
-                    {highestBidder === playerName ? "LİDERSİN!" : highestBidder ? `${highestBidder.toUpperCase()} GEÇTİ!` : "TEKLİF BEKLENİYOR"}
+                    {gameState === "INTEL_PHASE" ? "DOSYA ANALİZ EDİLİYOR..." : highestBidder === playerName ? "LİDERSİN!" : highestBidder ? `${highestBidder.toUpperCase()} GEÇTİ!` : "TEKLİF BEKLENİYOR"}
                   </p>
                 </div>
               </div>
@@ -302,36 +334,88 @@ export default function PlayerPage() {
                   <span className="text-[8px] sm:text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">MEVCUT TEKLİF</span>
                   <p className="text-2xl sm:text-3xl font-black italic text-white leading-none">${currentBid.toLocaleString()}</p>
                 </div>
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-pink-500/10 rounded-full flex items-center justify-center text-pink-500 border border-pink-500/20">
-                   <Zap className="w-5 h-5 sm:w-6 sm:h-6 fill-current" />
-                </div>
+                {gameState === "INTEL_PHASE" ? (
+                  <div className="flex items-center gap-2 text-pink-500/50 animate-pulse">
+                     <Clock className="w-5 h-5" />
+                     <span className="text-[10px] font-black uppercase tracking-widest">HAZIRLAN</span>
+                  </div>
+                ) : (
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-pink-500/10 rounded-full flex items-center justify-center text-pink-500 border border-pink-500/20">
+                     <Zap className="w-5 h-5 sm:w-6 sm:h-6 fill-current" />
+                  </div>
+                )}
               </div>
 
-              {/* 3. SECRET INTEL (Confidential Card) */}
-              <div className="relative group min-h-[180px] sm:min-h-[250px]">
-                <div className="absolute top-[-10px] left-6 w-20 h-5 bg-[#2D2A10] rounded-t-xl border-x-2 border-t-2 border-yellow-900/40" />
-                <div className="h-full bg-gradient-to-br from-[#1E1C0A] to-[#121106] rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-10 shadow-2xl border-2 border-yellow-900/30 relative overflow-hidden flex flex-col">
-                  <div className="absolute inset-0 opacity-[0.05] pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #FFD700 0, #FFD700 1px, transparent 0, transparent 50%)', backgroundSize: '10px 10px' }} />
-                  <div className="flex items-center gap-2 mb-4 sm:mb-6 text-yellow-500/40">
-                    <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-pulse" />
-                    <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.4em]">GİZLİ İSTİHBARAT</span>
-                  </div>
-                  <div className="relative flex-1">
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-12 pointer-events-none whitespace-nowrap">
-                      <span className="text-[3rem] sm:text-[5rem] font-black text-yellow-500/5 border-4 sm:border-8 border-yellow-500/5 px-4 sm:px-8 rounded-2xl sm:rounded-3xl uppercase tracking-tighter select-none">GİZLİDİR</span>
+              {/* 3. INTEL OVERHAUL (Purchasable Clues) */}
+              <div className="flex flex-col gap-4">
+                {/* Public Rumor Card */}
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 sm:p-6 backdrop-blur-sm">
+                   <div className="flex items-center gap-2 mb-3 text-slate-500">
+                      <div className="w-2 h-2 bg-slate-500 rounded-full" />
+                      <span className="text-[10px] font-black uppercase tracking-widest leading-none">KAMUOYU FISILTISI</span>
+                   </div>
+                   <p className="text-sm font-medium text-slate-300 italic leading-relaxed">
+                      "{intel.publicRumor || "Bilgi bekleniyor..."}"
+                   </p>
+                </div>
+
+                {/* Secret Intel Container */}
+                <div className="relative group min-h-[140px]">
+                  <div className="h-full bg-gradient-to-br from-[#1E1C0A] to-[#121106] rounded-2xl sm:rounded-[2.5rem] p-5 sm:p-8 shadow-2xl border-2 border-yellow-900/30 relative overflow-hidden flex flex-col">
+                    <div className="absolute inset-0 opacity-[0.05] pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #FFD700 0, #FFD700 1px, transparent 0, transparent 50%)', backgroundSize: '10px 10px' }} />
+                    
+                    <div className="flex justify-between items-center mb-4">
+                       <div className="flex items-center gap-2 text-yellow-500/40">
+                         <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-pulse" />
+                         <span className="text-[10px] font-black uppercase tracking-[0.4em]">GİZLİ BİLGİLER</span>
+                       </div>
+                       <div className="bg-yellow-500/10 px-2 py-1 rounded-md">
+                          <span className="text-[8px] font-black text-yellow-500/60 uppercase tracking-widest">{intel.purchased.length} / 3</span>
+                       </div>
                     </div>
-                    <div className="flex flex-col gap-3 sm:gap-4 font-mono relative z-10">
-                      <p className="text-[10px] bg-white/5 self-start px-2 py-0.5 rounded text-yellow-500/50">ID: #SYS_{roomCode}</p>
-                      <div className="h-[1px] w-8 bg-yellow-500/20" />
-                      <p className="text-base sm:text-lg font-bold text-yellow-100/90 leading-relaxed italic">"{intel || "Müzayede hakkında kritik bir sızıntı bekleniyor..."}"</p>
+
+                    <div className="flex flex-col gap-3 relative z-10 flex-1">
+                      {intel.purchased.length === 0 && (
+                         <div className="flex flex-col items-center justify-center py-4 opacity-30">
+                            <Zap className="w-6 h-6 text-yellow-500 mb-2" />
+                            <p className="text-[10px] font-black uppercase tracking-widest text-yellow-500">İSTİHBARAT YOK</p>
+                         </div>
+                      )}
+                      
+                      {intel.purchased.map((piece, idx) => (
+                        <motion.div 
+                          initial={{ x: -20, opacity: 0 }}
+                          animate={{ x: 0, opacity: 1 }}
+                          transition={{ delay: idx * 0.1 }}
+                          key={piece.id || idx} 
+                          className="flex flex-col gap-1.5 bg-white/5 p-3 rounded-xl border border-yellow-500/10"
+                        >
+                           <div className="flex items-center gap-2">
+                             <div className={`text-[8px] font-black uppercase px-2 py-0.5 rounded ${
+                               piece.rarity === 'legendary' ? 'bg-yellow-500 text-black' :
+                               piece.rarity === 'rare' ? 'bg-purple-500 text-white' :
+                               'bg-slate-600 text-white'
+                             }`}>
+                                {piece.rarity === 'legendary' ? 'EFSANEVİ' : piece.rarity === 'rare' ? 'NADİR' : 'SIRADAN'}
+                             </div>
+                           </div>
+                           <p className="text-[13px] font-medium text-yellow-50/80 leading-snug">"{piece.text}"</p>
+                        </motion.div>
+                      ))}
                     </div>
-                  </div>
-                  <div className="mt-4 sm:mt-6 flex justify-between items-end border-t border-yellow-500/10 pt-4">
-                    <div className="flex flex-col">
-                      <span className="text-[7px] font-black text-yellow-500/20 uppercase tracking-widest">INTEL_REL_99X</span>
-                      <span className="text-[7px] font-black text-yellow-500/20 uppercase tracking-widest">ENCRYPTED_SIG: OK</span>
-                    </div>
-                    <div className="text-right"><span className="text-[8px] font-black text-yellow-500/40 uppercase tracking-widest">KAPALI DOSYA</span></div>
+
+                    {/* Buy Button */}
+                    {intel.purchased.length < 3 && (
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={buyIntel}
+                        disabled={balance < [500, 2500, 5000][intel.purchased.length]}
+                        className="mt-4 w-full py-4 bg-yellow-500 hover:bg-yellow-400 text-black rounded-xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 disabled:opacity-30 disabled:grayscale transition-all"
+                      >
+                         <Zap className="w-4 h-4 fill-current" />
+                         İSTİHBARAT AL — ${[500, 2500, 5000][intel.purchased.length].toLocaleString()}
+                      </motion.button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -360,9 +444,9 @@ export default function PlayerPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3 sm:gap-5">
-                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => placeBid(500)} disabled={balance < currentBid + 500} className="h-20 sm:h-28 bg-white/5 border border-white/10 rounded-2xl sm:rounded-[2rem] flex flex-col items-center justify-center gap-1 text-slate-300 disabled:opacity-20"><span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">GÜVENLİ</span><span className="text-xl sm:text-2xl font-black leading-none">+500</span></motion.button>
-                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => placeBid(2500)} disabled={balance < currentBid + 2500} className="h-20 sm:h-28 bg-blue-500/10 border-2 border-blue-500/30 rounded-2xl sm:rounded-[2rem] flex flex-col items-center justify-center gap-1 text-blue-400 disabled:opacity-20"><span className="text-[8px] font-bold uppercase tracking-widest opacity-60">ARTIR</span><span className="text-2xl sm:text-3xl font-black leading-none">+2.5k</span></motion.button>
-                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => placeBid(10000)} disabled={balance < currentBid + 10000} className="h-20 sm:h-28 bg-gradient-to-br from-pink-600 to-purple-700 rounded-2xl sm:rounded-[2rem] flex flex-col items-center justify-center gap-1 text-white disabled:opacity-20 relative overflow-hidden"><div className="absolute top-2 right-3 w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping" /><span className="text-[8px] font-bold text-white/40 uppercase tracking-widest">AGRESİF</span><span className="text-2xl sm:text-3xl font-black leading-none">+10k</span></motion.button>
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => placeBid(500)} disabled={gameState === "INTEL_PHASE" || balance < currentBid + 500} className="h-20 sm:h-28 bg-white/5 border border-white/10 rounded-2xl sm:rounded-[2rem] flex flex-col items-center justify-center gap-1 text-slate-300 disabled:opacity-20"><span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">GÜVENLİ</span><span className="text-xl sm:text-2xl font-black leading-none">+500</span></motion.button>
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => placeBid(2500)} disabled={gameState === "INTEL_PHASE" || balance < currentBid + 2500} className="h-20 sm:h-28 bg-blue-500/10 border-2 border-blue-500/30 rounded-2xl sm:rounded-[2rem] flex flex-col items-center justify-center gap-1 text-blue-400 disabled:opacity-20"><span className="text-[8px] font-bold uppercase tracking-widest opacity-60">ARTIR</span><span className="text-2xl sm:text-3xl font-black leading-none">+2.5k</span></motion.button>
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => placeBid(10000)} disabled={gameState === "INTEL_PHASE" || balance < currentBid + 10000} className="h-20 sm:h-28 bg-gradient-to-br from-pink-600 to-purple-700 rounded-2xl sm:rounded-[2rem] flex flex-col items-center justify-center gap-1 text-white disabled:opacity-20 relative overflow-hidden"><div className="absolute top-2 right-3 w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping" /><span className="text-[8px] font-bold text-white/40 uppercase tracking-widest">AGRESİF</span><span className="text-2xl sm:text-3xl font-black leading-none">+10k</span></motion.button>
                 </div>
                 <p className="text-center text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-2 leading-relaxed opacity-60">Teklifler anında cüzdanınızdan düşülür. İadesi yoktur.</p>
               </div>
@@ -396,7 +480,7 @@ export default function PlayerPage() {
                         <div key={i} className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-green-500 border-2 border-slate-950 shadow-md animate-bounce" />
                      ))}
                   </div>
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mt-3">{readyPlayers.length} / {readyPlayers.length} HAZIR</p>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mt-3">{readyPlayers.length} / {totalPlayers} HAZIR</p>
                </div>
             </div>
           )}
@@ -461,11 +545,19 @@ export default function PlayerPage() {
                   <motion.button 
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => window.location.reload()}
+                    onClick={() => {
+                        // Manually re-sync to check if lobby is ready
+                        socket.emit("sync-room", { 
+                            roomCode: roomCode.toUpperCase(), 
+                            sessionId: playerId, 
+                            isHost: false 
+                        });
+                        // If room state is already lobby, this will trigger room-synced and move them
+                    }}
                     className="w-full bg-white text-slate-950 py-6 rounded-[2rem] font-black text-xl shadow-xl flex items-center justify-center gap-3 group"
                   >
                     <RefreshCw className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
-                    TEKRAR OYNA
+                    ANA MENÜYE DÖN
                   </motion.button>
                   <p className="text-[9px] font-bold text-slate-600 uppercase tracking-[0.3em] italic">Yeni bir odaya katılmak için sayfayı yenileyebilirsiniz.</p>
                 </div>
@@ -473,17 +565,7 @@ export default function PlayerPage() {
             </motion.div>
           )}
 
-          {gameState === "INTEL_PHASE" && (
-             <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-12 text-center space-y-6 sm:space-y-8 animate-pulse text-slate-500">
-                <div className="w-20 h-20 sm:w-24 sm:h-24 bg-white/5 rounded-full flex items-center justify-center text-slate-700 border border-white/5">
-                   <Target className="w-10 h-10 sm:w-12 sm:h-12" />
-                </div>
-                <div className="space-y-3 sm:space-y-4">
-                   <p className="text-[10px] font-black uppercase tracking-[0.5em]">OPERASYON BAŞLADI</p>
-                   <p className="text-xl sm:text-2xl font-black italic text-white">YENİ EŞYA GÖZETLENİYOR...</p>
-                </div>
-             </div>
-          )}
+          {/* Removed redundant INTEL_PHASE block as it's now handled in the combined section */}
         </AnimatePresence>
       </div>
 
