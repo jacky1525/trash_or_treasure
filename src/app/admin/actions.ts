@@ -43,7 +43,7 @@ export async function createItem(formData: FormData) {
     const imageUrl = formData.get("imageUrl") as string;
     const displayedValue = parseInt(formData.get("displayedValue") as string);
     const realValue = parseInt(formData.get("realValue") as string);
-    const category = formData.get("category") as string || "Other";
+    const category = formData.get("category") as string || "DİĞER";
     const gameSet = formData.get("gameSet") as string || "SET_A";
     const isTreasure = formData.get("isTreasure") === "on";
     const publicRumor = formData.get("publicRumor") as string;
@@ -80,7 +80,7 @@ export async function updateItem(id: string, formData: FormData) {
     const imageUrl = formData.get("imageUrl") as string;
     const displayedValue = parseInt(formData.get("displayedValue") as string);
     const realValue = parseInt(formData.get("realValue") as string);
-    const category = formData.get("category") as string || "Other";
+    const category = formData.get("category") as string || "DİĞER";
     const gameSet = formData.get("gameSet") as string || "SET_A";
     const isTreasure = formData.get("isTreasure") === "on";
     const publicRumor = formData.get("publicRumor") as string;
@@ -102,5 +102,60 @@ export async function updateItem(id: string, formData: FormData) {
         },
     });
 
+    revalidatePath("/admin");
+}
+
+/* SUGGESTION ACTIONS */
+
+export async function suggestItem(formData: FormData) {
+    try {
+        const name = formData.get("name") as string;
+        const description = formData.get("description") as string;
+        // Clean value of commas if they exist
+        const rawValue = formData.get("suggestedValue") as string;
+        const suggestedValue = parseInt(rawValue.replace(/,/g, ''));
+        const category = formData.get("category") as string || "DİĞER";
+        const suggestedBy = formData.get("suggestedBy") as string;
+
+        if (isNaN(suggestedValue)) {
+            throw new Error("Geçersiz değer formatı");
+        }
+
+        await prisma.suggestedItem.create({
+            data: {
+                name,
+                description,
+                suggestedValue,
+                category,
+                suggestedBy: suggestedBy || "Anonim",
+                status: "PENDING"
+            },
+        });
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("Suggestion Error:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function getSuggestions() {
+    return await prisma.suggestedItem.findMany({
+        orderBy: { createdAt: "desc" },
+    });
+}
+
+export async function deleteSuggestion(id: string) {
+    await prisma.suggestedItem.delete({
+        where: { id },
+    });
+    revalidatePath("/admin");
+}
+
+export async function updateSuggestionStatus(id: string, status: string) {
+    await prisma.suggestedItem.update({
+        where: { id },
+        data: { status },
+    });
     revalidatePath("/admin");
 }

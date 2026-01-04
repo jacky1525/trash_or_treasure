@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Pencil, Trash2, X, Search, Image as ImageIcon, DollarSign, Eye, Filter, LogOut, LayoutDashboard, Save, RefreshCw } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Search, Image as ImageIcon, DollarSign, Eye, Filter, LogOut, LayoutDashboard, Save, RefreshCw, MessageSquarePlus } from "lucide-react";
 import { createItem, deleteItem, updateItem, logout } from "./actions";
 
 interface IntelPiece {
@@ -25,16 +25,29 @@ interface Item {
   intelPool: IntelPiece[] | string; // Can be string coming from DB initially
 }
 
-const CATEGORIES = ["HEPSİ", "History", "Pop-Culture", "Luxury", "Art", "Tech"];
+interface SuggestedItem {
+  id: string;
+  name: string;
+  description: string;
+  suggestedValue: number;
+  category: string;
+  suggestedBy: string;
+  status: string;
+  createdAt: string;
+}
+
+const CATEGORIES = ["HEPSİ", "TARİH", "POPÜLER KÜLTÜR", "LÜKS", "SANAT", "TEKNOLOJİ", "DİĞER"];
 
 const formatPrice = (val: number) => {
   return val.toLocaleString('tr-TR');
 };
 
-export default function AdminClient({ initialItems }: { initialItems: Item[] }) {
+export default function AdminClient({ initialItems, initialSuggestions }: { initialItems: Item[], initialSuggestions: SuggestedItem[] }) {
+  const [activeTab, setActiveTab] = useState<"CATALOG" | "SUGGESTIONS">("CATALOG");
   const [items, setItems] = useState<Item[]>(initialItems);
+  const [suggestions, setSuggestions] = useState<SuggestedItem[]>(initialSuggestions);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<Item | null>(null);
+  const [editingItem, setEditingItem] = useState<Item | Partial<Item> | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("HEPSİ");
   const [selectedSet, setSelectedSet] = useState("HEPSİ");
@@ -44,7 +57,7 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
   const [newIntelText, setNewIntelText] = useState("");
   const [newIntelRarity, setNewIntelRarity] = useState<"common" | "rare" | "legendary">("common");
 
-  // Reset intel pool when opening modal
+  // Sync intel pool when opening modal
   useMemo(() => {
     if (editingItem && editingItem.intelPool) {
       if (typeof editingItem.intelPool === 'string') {
@@ -84,8 +97,8 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
     // Append structured intel pool as JSON string
     formData.set('intelPool', JSON.stringify(intelPool));
 
-    if (editingItem) {
-      await updateItem(editingItem.id, formData);
+    if (editingItem && 'id' in editingItem) {
+      await updateItem(editingItem.id as string, formData);
     } else {
       await createItem(formData);
     }
@@ -93,7 +106,8 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
     window.location.reload();
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string | undefined) => {
+    if (!id) return;
     if (confirm("Bu eşyayı silmek istediğinizden emin misiniz?")) {
       await deleteItem(id);
       window.location.reload();
@@ -108,7 +122,7 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
                              item.category === selectedCategory ||
                              item.category?.toUpperCase() === selectedCategory.toUpperCase();
       const matchesSet = selectedSet === "HEPSİ" || 
-                        item.gameSet === selectedSet;
+                         item.gameSet === selectedSet;
       return matchesSearch && matchesCategory && matchesSet;
     });
   }, [initialItems, searchQuery, selectedCategory, selectedSet]);
@@ -159,14 +173,37 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
             </div>
             
             <div className="flex flex-col sm:flex-row items-center gap-4">
-              <div className="relative w-full sm:w-80 group">
+              {/* Tab Switcher */}
+              <div className="bg-white/5 p-1.5 rounded-2xl flex items-center gap-1 border border-white/5">
+                <button 
+                  onClick={() => setActiveTab("CATALOG")}
+                  className={`px-6 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all ${activeTab === 'CATALOG' ? 'bg-white text-slate-900 shadow-lg' : 'text-slate-500 hover:text-white'}`}
+                >
+                  KATALOG
+                </button>
+                <button 
+                  onClick={() => setActiveTab("SUGGESTIONS")}
+                  className={`px-6 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all relative ${activeTab === 'SUGGESTIONS' ? 'bg-pink-500 text-white shadow-lg shadow-pink-500/20' : 'text-slate-500 hover:text-white'}`}
+                >
+                  ÖNERİLER
+                  {suggestions.filter(s => s.status === 'PENDING').length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[8px] flex items-center justify-center rounded-full animate-pulse border-2 border-slate-900">
+                      {suggestions.filter(s => s.status === 'PENDING').length}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              <div className="h-10 w-px bg-white/10 hidden sm:block mx-2" />
+
+              <div className="relative w-full sm:w-64 group">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-pink-500 transition-colors" />
                 <input 
                   type="text"
-                  placeholder="Eşya ara..."
+                  placeholder="Ara..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-slate-900/50 border border-white/10 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:border-pink-500 outline-none transition-all placeholder:text-slate-600 ring-0"
+                  className="w-full bg-slate-900/50 border border-white/10 rounded-2xl pl-11 pr-4 py-2.5 text-xs focus:border-pink-500 outline-none transition-all placeholder:text-slate-600 ring-0"
                 />
               </div>
               <button
@@ -175,74 +212,91 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
                   setIsModalOpen(true);
                   setIntelPool([]);
                 }}
-                className="w-full sm:w-auto bg-white text-slate-950 px-8 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-pink-500 hover:text-white transition-all shadow-lg shadow-white/5 active:scale-95"
+                className="w-full sm:w-auto bg-white text-slate-950 px-6 py-2.5 rounded-xl text-[10px] font-black tracking-widest flex items-center justify-center gap-2 hover:bg-pink-500 hover:text-white transition-all shadow-lg active:scale-95"
               >
-                <Plus className="w-5 h-5" />
+                <Plus className="w-4 h-4" />
                 YENİ EŞYA
               </button>
             </div>
           </div>
 
-          {/* Filters */}
-          <div className="flex flex-col gap-6">
-            {/* Set Filter */}
-            <div className="flex flex-col gap-4">
-               <div className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-                  <RefreshCw className="w-3 h-3" />
-                  OYNANIŞ SETİ FİLTRESİ
-               </div>
-               <div className="flex flex-wrap gap-2.5">
-                  {["HEPSİ", "SET_A", "SET_B", "SET_C"].map(set => (
-                    <button
-                      key={set}
-                      onClick={() => setSelectedSet(set)}
-                      className={`px-5 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all border ${
-                        selectedSet === set 
-                          ? "bg-green-500 text-white border-green-500 shadow-xl shadow-green-500/20" 
-                          : "bg-white/5 text-slate-400 border-white/5 hover:border-white/10 hover:text-white"
-                      }`}
-                    >
-                      {set === "HEPSİ" ? "TÜM SETLER" : set.replace("_", " ")}
-                    </button>
-                  ))}
-               </div>
-            </div>
-
-            {/* Category Filter */}
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-                <Filter className="w-3 h-3" />
-                KATEGORİ FİLTRESİ
+          {activeTab === 'CATALOG' && (
+            <div className="flex flex-col gap-6">
+              {/* Set Filter */}
+              <div className="flex flex-col gap-4">
+                 <div className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                    <RefreshCw className="w-3 h-3" />
+                    OYNANIŞ SETİ FİLTRESİ
+                 </div>
+                 <div className="flex flex-wrap gap-2.5">
+                    {["HEPSİ", "SET_A", "SET_B", "SET_C"].map(set => (
+                      <button
+                        key={set}
+                        onClick={() => setSelectedSet(set)}
+                        className={`px-5 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all border ${
+                          selectedSet === set 
+                            ? "bg-green-500 text-white border-green-500 shadow-xl shadow-green-500/20" 
+                            : "bg-white/5 text-slate-400 border-white/5 hover:border-white/10 hover:text-white"
+                        }`}
+                      >
+                        {set === "HEPSİ" ? "TÜM SETLER" : set.replace("_", " ")}
+                      </button>
+                    ))}
+                 </div>
               </div>
-              <div className="flex flex-wrap gap-2.5">
-              {CATEGORIES.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-5 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all border ${
-                    selectedCategory === cat 
-                      ? "bg-pink-500 text-white border-pink-500 shadow-xl shadow-pink-500/20" 
-                      : "bg-white/5 text-slate-400 border-white/5 hover:border-white/10 hover:text-white"
-                  }`}
-                >
-                  {cat.toUpperCase()}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-2">
-               <div className="h-px flex-1 bg-white/5" />
-               <p className="text-[10px] font-bold text-slate-600">
-                Toplam <span className="text-white">{initialItems.length}</span> / Gösterilen <span className="text-pink-500">{filteredItems.length}</span>
-              </p>
+
+              {/* Category Filter */}
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                  <Filter className="w-3 h-3" />
+                  KATEGORİ FİLTRESİ
+                </div>
+                <div className="flex flex-wrap gap-2.5">
+                {CATEGORIES.map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-5 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all border ${
+                      selectedCategory === cat 
+                        ? "bg-pink-500 text-white border-pink-500 shadow-xl shadow-pink-500/20" 
+                        : "bg-white/5 text-slate-400 border-white/5 hover:border-white/10 hover:text-white"
+                    }`}
+                  >
+                    {cat.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                 <div className="h-px flex-1 bg-white/5" />
+                 <p className="text-[10px] font-bold text-slate-600">
+                  Toplam <span className="text-white">{initialItems.length}</span> / Gösterilen <span className="text-pink-500">{filteredItems.length}</span>
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+          )}
+
+          {activeTab === 'SUGGESTIONS' && (
+             <div className="flex flex-col gap-4">
+                <div className="flex justify-between items-center">
+                   <div className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                      <MessageSquarePlus className="w-3 h-3" />
+                      GELEN ÖNERİLER
+                   </div>
+                   <p className="text-[10px] font-bold text-slate-600">
+                    Toplam <span className="text-white">{suggestions.length}</span> Öneri
+                  </p>
+                </div>
+                <div className="h-px w-full bg-white/5" />
+             </div>
+          )}
 
         </div>
 
-        {/* Grid */}
+        {/* Grid Content */}
         <div className="min-h-[400px]">
-          {filteredItems.length > 0 ? (
+          {activeTab === 'CATALOG' ? (
+            filteredItems.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               <AnimatePresence mode="popLayout">
                 {filteredItems.map((item) => (
@@ -314,9 +368,9 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
                             Tahmini Aralık
                           </p>
                           <div className="flex items-center gap-2">
-                            <p className="text-lg font-black text-white tracking-tighter">${formatPrice(Math.round(item.displayedValue * 0.8))}</p>
-                            <span className="text-slate-700 font-bold">-</span>
-                            <p className="text-lg font-black text-white tracking-tighter">${formatPrice(Math.round(item.displayedValue * 1.2))}</p>
+                              <p className="text-lg font-black text-white tracking-tighter">${formatPrice(Math.round((item.displayedValue || 0) * 0.8))}</p>
+                              <span className="text-slate-700 font-bold">-</span>
+                              <p className="text-lg font-black text-white tracking-tighter">${formatPrice(Math.round((item.displayedValue || 0) * 1.2))}</p>
                           </div>
                         </div>
                         <div className="bg-pink-500/5 p-5 rounded-3xl border border-pink-500/20">
@@ -345,6 +399,87 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
               >
                 Filtreleri Temizle
               </button>
+            </div>
+          )) : (
+            /* Suggestions View */
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <AnimatePresence mode="popLayout">
+                {suggestions.map((sug) => (
+                  <motion.div 
+                    key={sug.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-slate-900/60 border border-white/5 rounded-[2rem] p-8 flex flex-col gap-6 hover:border-pink-500/30 transition-all"
+                  >
+                     <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                           <div className="flex items-center gap-2">
+                             <h3 className="text-xl font-bold uppercase tracking-tight text-white">{sug.name}</h3>
+                             <span className="px-2 py-0.5 bg-pink-500/10 text-pink-500 text-[8px] font-black rounded uppercase tracking-widest border border-pink-500/20">ÖNERİ</span>
+                           </div>
+                           <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">GÖNDEREN: <span className="text-white">{sug.suggestedBy}</span></p>
+                        </div>
+                        <div className="text-right">
+                           <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest mb-1">ÖNERİLEN DEĞER</p>
+                           <p className="text-2xl font-black italic text-white tracking-tighter">${formatPrice(sug.suggestedValue)}</p>
+                        </div>
+                     </div>
+
+                     <div className="bg-white/5 p-6 rounded-2xl italic text-sm text-slate-400 font-medium leading-relaxed">
+                        "{sug.description}"
+                     </div>
+
+                     <div className="flex items-center justify-between pt-4 border-t border-white/5 mt-auto">
+                        <div className="flex gap-2">
+                           <span className="px-3 py-1 bg-white/5 rounded-full text-[9px] font-black tracking-widest text-slate-400 uppercase">
+                             {sug.category}
+                           </span>
+                           <span className="px-3 py-1 bg-white/5 rounded-full text-[9px] font-black tracking-widest text-slate-500 uppercase">
+                              {new Date(sug.createdAt).toLocaleDateString('tr-TR')}
+                           </span>
+                        </div>
+                        <div className="flex gap-3">
+                           <button 
+                              onClick={() => {
+                                 setEditingItem({
+                                    name: sug.name,
+                                    description: sug.description,
+                                    displayedValue: sug.suggestedValue,
+                                    category: sug.category || "Other",
+                                    imageUrl: "",
+                                    isTreasure: false,
+                                    publicRumor: "",
+                                    intelPool: []
+                                 });
+                                 setIsModalOpen(true);
+                              }}
+                              className="px-6 py-2.5 bg-white text-slate-950 rounded-xl font-black text-[10px] tracking-widest hover:bg-pink-500 hover:text-white transition-all shadow-lg active:scale-95"
+                           >
+                              DÜZENLE & EKLE
+                           </button>
+                           <button 
+                              onClick={async () => {
+                                 if (confirm("Bu öneriyi reddetmek/silmek istediğinizden emin misiniz?")) {
+                                    const { deleteSuggestion } = await import("./actions");
+                                    await deleteSuggestion(sug.id);
+                                    window.location.reload();
+                                 }
+                              }}
+                              className="p-2.5 bg-white/5 rounded-xl text-slate-500 hover:text-red-500 hover:bg-red-500/10 transition-all"
+                           >
+                              <Trash2 className="w-4 h-4" />
+                           </button>
+                        </div>
+                     </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+              {suggestions.length === 0 && (
+                <div className="col-span-full py-20 text-center bg-white/5 rounded-[2rem] border border-dashed border-white/10">
+                   <p className="text-slate-500 italic font-medium">Henüz bir öneri bulunmuyor.</p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -397,7 +532,7 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
                         <div className="relative">
                         <select 
                             name="category" 
-                            defaultValue={editingItem?.category || "History"} 
+                            defaultValue={editingItem?.category || "TARİH"} 
                             className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:border-pink-500 outline-none transition-all appearance-none cursor-pointer text-sm font-black tracking-widest"
                         >
                             {CATEGORIES.filter(c => c !== "HEPSİ").map(c => (
@@ -475,7 +610,9 @@ export default function AdminClient({ initialItems }: { initialItems: Item[] }) 
                     />
                     <p className="text-[9px] text-slate-600 font-black px-2 tracking-widest">
                       GÖRÜNEN ARALIK: <span id="range-preview" className="text-pink-500">
-                        ${editingItem ? formatPrice(Math.round(editingItem.displayedValue * 0.8)) : "0"} - ${editingItem ? formatPrice(Math.round(editingItem.displayedValue * 1.2)) : "0"}
+                        {editingItem?.displayedValue ? (
+                           `$${formatPrice(Math.round(editingItem.displayedValue * 0.8))} - $${formatPrice(Math.round(editingItem.displayedValue * 1.2))}`
+                        ) : "$0 - $0"}
                       </span>
                     </p>
                   </div>

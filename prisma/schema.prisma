@@ -31,3 +31,14 @@ model GameSession {
   itemsSold String   // JSON stringified sold items
   createdAt DateTime @default(now())
 }
+
+model SuggestedItem {
+  id              String   @id @default(cuid())
+  name            String
+  description     String
+  suggestedValue  Int
+  category        String   @default("Other")
+  suggestedBy     String?  // Optional name of suggester
+  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt       DateTime @default(now())
+}

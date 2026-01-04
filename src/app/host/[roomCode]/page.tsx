@@ -4,8 +4,9 @@ import { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getSocket } from "@/lib/socket";
 import { motion, AnimatePresence } from "framer-motion";
-import { QrCode, Users, Play, Timer, TrendingUp, Trophy, DollarSign, History, User, Clock, Settings, Filter, Check, RefreshCw, Info, Zap, Layers } from "lucide-react";
+import { QrCode, Users, Play, Timer, TrendingUp, Trophy, DollarSign, History, User, Clock, Settings, Filter, Check, Copy, RefreshCw, Info, Zap, Layers, MessageSquarePlus, X, Lightbulb } from "lucide-react";
 import { soundManager } from "@/lib/soundManager";
+import { suggestItem } from "@/app/admin/actions";
 
 interface Reaction {
   id: number;
@@ -34,6 +35,18 @@ export default function HostPage() {
   const [readyTotal, setReadyTotal] = useState({ ready: 0, total: 0 });
   const [totalDuration, setTotalDuration] = useState(60);
   const [soldHistory, setSoldHistory] = useState<any[]>([]);
+  const [isAuthorizedHost, setIsAuthorizedHost] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showSuggestionModal, setShowSuggestionModal] = useState(false);
+  const [suggestForm, setSuggestForm] = useState({
+    name: "",
+    description: "",
+    suggestedValue: "",
+    category: "TARİH",
+    suggestedBy: ""
+  });
+  const [suggestStatus, setSuggestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  
   const [gameOptions, setGameOptions] = useState({
     roundDuration: 60,
     selectedCategories: ["HEPSİ"],
@@ -43,11 +56,12 @@ export default function HostPage() {
 
   const CATEGORIES = [
     { label: "HEPSİ", value: "HEPSİ" },
-    { label: "TARİH", value: "History" },
-    { label: "POPÜLER KÜLTÜR", value: "Pop-Culture" },
-    { label: "LÜKS", value: "Luxury" },
-    { label: "SANAT", value: "Art" },
-    { label: "TEKNOLOJİ", value: "Tech" }
+    { label: "TARİH", value: "TARİH" },
+    { label: "POPÜLER KÜLTÜR", value: "POPÜLER KÜLTÜR" },
+    { label: "LÜKS", value: "LÜKS" },
+    { label: "SANAT", value: "SANAT" },
+    { label: "TEKNOLOJİ", value: "TEKNOLOJİ" },
+    { label: "DİĞER", value: "DİĞER" }
   ];
 
   const socket = getSocket();
@@ -86,6 +100,7 @@ export default function HostPage() {
       if (data.soldHistory) setSoldHistory(data.soldHistory);
       if (data.currentBid !== undefined) setCurrentBid(data.currentBid);
       if (data.highestBidder) setHighestBidder(data.highestBidder);
+      if (data.isAuthorizedHost !== undefined) setIsAuthorizedHost(data.isAuthorizedHost);
     });
 
     socket.on("session-reset", () => {
@@ -302,12 +317,18 @@ export default function HostPage() {
 
         <div className="z-10 w-full max-w-7xl grid grid-cols-12 gap-12 items-center">
           {/* Main content - Left Section */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="col-span-12 lg:col-span-8 flex flex-col items-center justify-center text-center space-y-12">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`col-span-12 ${isAuthorizedHost ? 'lg:col-span-7' : ''} flex flex-col items-center justify-center text-center space-y-12`}>
             <div className="space-y-4">
               <span className="text-pink-500 font-black tracking-[0.5em] uppercase text-xs">Müzayede Platformuna Hoş Geldiniz</span>
               <h1 className="text-8xl font-black tracking-tighter bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent italic drop-shadow-2xl">
                 TRASH or TREASURE
               </h1>
+              {!isAuthorizedHost && (
+                <div className="bg-rose-500/10 border border-rose-500/20 px-6 py-2 rounded-full inline-flex items-center gap-2">
+                  <div className="w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
+                  <span className="text-rose-500 text-[10px] font-black tracking-widest uppercase italic">İZLEYİCİ MODU</span>
+                </div>
+              )}
             </div>
 
             <div className="bg-white/5 border border-white/10 p-12 rounded-[3.5rem] backdrop-blur-xl shadow-2xl relative w-full max-w-2xl group">
@@ -317,9 +338,29 @@ export default function HostPage() {
               <p className="text-slate-500 text-sm mb-4 uppercase tracking-[0.4em] font-black opacity-50">Giriş Kodu</p>
               <div className="text-9xl font-black font-mono tracking-widest text-white mb-8 select-all drop-shadow-[0_0_30px_rgba(255,255,255,0.1)]">{roomCode}</div>
               
-              <div className="flex items-center justify-center gap-3 text-slate-400 bg-white/5 py-5 px-8 rounded-3xl border border-white/5 group-hover:border-white/10 transition-colors">
-                <QrCode className="w-6 h-6 text-pink-500" />
-                <span className="font-bold text-sm tracking-wide">Telefonunuzdan bu kodu girerek katılın</span>
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-center gap-3 text-slate-400 bg-white/5 py-5 px-8 rounded-3xl border border-white/5 group-hover:border-white/10 transition-colors">
+                  <QrCode className="w-6 h-6 text-pink-500" />
+                  <span className="font-bold text-sm tracking-wide">Telefonunuzdan bu kodu girerek katılın</span>
+                </div>
+
+                {isAuthorizedHost && (
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(window.location.href);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                    className={`flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest py-3 rounded-2xl transition-all border ${
+                      copied 
+                        ? 'bg-green-500/20 text-green-500 border-green-500/50' 
+                        : 'bg-rose-500/10 text-rose-500 border-rose-500/20 hover:bg-rose-500/20'
+                    }`}
+                  >
+                    {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    {copied ? "KOPYALANDI!" : "MÜZAYEDE EKRANI BAĞLANTISINI KOPYALA"}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -351,211 +392,428 @@ export default function HostPage() {
             </div>
           </motion.div>
 
+
           {/* Options Sidebar - Right Section */}
-          <motion.div 
-            initial={{ opacity: 0, x: 40 }} 
-            animate={{ opacity: 1, x: 0 }} 
-            className="col-span-12 lg:col-span-4 flex flex-col gap-6"
-          >
-            <div className="bg-slate-900/40 border border-white/10 p-10 rounded-[3.5rem] backdrop-blur-2xl shadow-3xl flex flex-col gap-10 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/5 rounded-full blur-3xl -mr-16 -mt-16" />
-              
-              <div className="flex items-center gap-4 border-b border-white/5 pb-6">
-                <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10">
-                  <Settings className="w-6 h-6 text-pink-500" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xl font-black tracking-tight uppercase italic text-white leading-none">Oyun Ayarları</span>
-                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Oturum Yapılandırması</span>
-                </div>
-              </div>
-
-              {/* Round Duration */}
-              <div className="space-y-5">
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-3 text-slate-400">
-                    <Clock className="w-4 h-4" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.3em]">Tur Süresi</span>
+          {isAuthorizedHost ? (
+            <motion.div 
+              initial={{ opacity: 0, x: 40 }} 
+              animate={{ opacity: 1, x: 0 }} 
+              className="col-span-12 lg:col-span-5 flex flex-col gap-6"
+            >
+              <div className="bg-slate-900/40 border border-white/10 p-8 rounded-[3rem] backdrop-blur-2xl shadow-3xl flex flex-col gap-8 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/5 rounded-full blur-3xl -mr-16 -mt-16" />
+                
+                <div className="flex items-center gap-4 border-b border-white/5 pb-6">
+                  <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10">
+                    <Settings className="w-6 h-6 text-pink-500" />
                   </div>
-                  <span className="text-[10px] font-black text-pink-500 italic">{gameOptions.roundDuration} Saniye</span>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  {[30, 60, 120].map((sec) => (
-                    <button
-                      key={sec}
-                      onClick={() => setGameOptions(prev => ({ ...prev, roundDuration: sec }))}
-                      className={`py-4 rounded-2xl font-black text-xs transition-all border ${
-                        gameOptions.roundDuration === sec 
-                          ? "bg-pink-500 border-pink-400 text-white shadow-[0_0_25px_rgba(236,72,153,0.3)] scale-105" 
-                          : "bg-white/5 border-white/5 text-slate-500 hover:bg-white/10 hover:text-slate-300"
-                      }`}
-                    >
-                      {sec < 60 ? `${sec}S` : `${sec / 60}DK`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Max Rounds Selection */}
-              <div className="space-y-5">
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-3 text-slate-400">
-                    <Layers className="w-4 h-4" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.3em]">Toplam Tur</span>
-                  </div>
-                  <span className="text-[10px] font-black text-blue-500 italic">{gameOptions.maxRounds} TUR</span>
-                </div>
-                <div className="px-2 pt-2">
-                  <input 
-                    type="range" 
-                    min="3" 
-                    max="15" 
-                    value={gameOptions.maxRounds}
-                    onChange={(e) => setGameOptions(prev => ({ ...prev, maxRounds: parseInt(e.target.value) }))}
-                    className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-blue-500"
-                  />
-                  <div className="flex justify-between mt-2 text-[8px] font-black text-slate-600 uppercase tracking-widest">
-                     <span>3 Tur</span>
-                     <span>9 Tur</span>
-                     <span>15 Tur</span>
+                  <div className="flex flex-col">
+                    <span className="text-xl font-black tracking-tight uppercase italic text-white leading-none">Oyun Ayarları</span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Oturum Yapılandırması</span>
                   </div>
                 </div>
-              </div>
 
-              {/* Gameplay Set Selection */}
-              <div className="space-y-5">
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-3 text-slate-400">
-                    <RefreshCw className="w-4 h-4" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.3em]">Oynanış Seti</span>
+                <div className="flex flex-col gap-8">
+                  {/* TOP ROW: Duration & Sets */}
+                  <div className="grid grid-cols-2 gap-8 items-start">
+                    {/* Time Selection */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between px-1">
+                        <div className="flex items-center gap-2 text-slate-400">
+                          <Clock className="w-4 h-4" />
+                          <span className="text-[10px] font-black uppercase tracking-[0.2em]">Süre</span>
+                        </div>
+                        <span className="text-[10px] font-black text-pink-500 italic">{gameOptions.roundDuration}s</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[30, 60, 120].map((sec) => (
+                          <button
+                            key={sec}
+                            onClick={() => setGameOptions(prev => ({ ...prev, roundDuration: sec }))}
+                            className={`py-3 rounded-xl font-black text-[10px] transition-all border ${
+                              gameOptions.roundDuration === sec 
+                                ? "bg-pink-500 border-pink-400 text-white shadow-[0_0_15px_rgba(236,72,153,0.3)] scale-105" 
+                                : "bg-white/5 border-white/5 text-slate-500 hover:bg-white/10 hover:text-slate-300"
+                            }`}
+                          >
+                            {sec < 60 ? `${sec}S` : `${sec / 60}D`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Set Selection */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between px-1">
+                        <div className="flex items-center gap-2 text-slate-400">
+                          <RefreshCw className="w-4 h-4" />
+                          <span className="text-[10px] font-black uppercase tracking-[0.2em]">Set</span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { id: "SET_A", label: "SET A" },
+                          { id: "SET_B", label: "SET B" },
+                          { id: "SET_C", label: "SET C" },
+                          { id: "HEPSİ", label: "KARIŞIK" }
+                        ].map((set) => (
+                          <button
+                            key={set.id}
+                            onClick={() => setGameOptions(prev => ({ ...prev, selectedSet: set.id }))}
+                            className={`px-2 py-3 rounded-xl text-[10px] font-black tracking-widest transition-all border flex items-center justify-center gap-1 ${
+                              gameOptions.selectedSet === set.id
+                                ? "bg-green-600 border-green-500 text-white shadow-[0_0_15px_rgba(34,197,94,0.3)] scale-105" 
+                                : "bg-white/5 border-white/5 text-slate-500 hover:bg-white/10 hover:text-slate-300"
+                            }`}
+                          >
+                            {set.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-[10px] font-black text-green-500 italic">
-                     {gameOptions.selectedSet === "SET_A" ? "SET A (16 Eşya)" : 
-                      gameOptions.selectedSet === "SET_B" ? "SET B (16 Eşya)" : 
-                      gameOptions.selectedSet === "SET_C" ? "SET C (15 Eşya)" : "TÜM EŞYALAR"}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: "SET_A", label: "SET A" },
-                    { id: "SET_B", label: "SET B" },
-                    { id: "SET_C", label: "SET C" },
-                    { id: "HEPSİ", label: "KARIŞIK" }
-                  ].map((set) => (
-                    <button
-                      key={set.id}
-                      onClick={() => setGameOptions(prev => ({ ...prev, selectedSet: set.id }))}
-                      className={`px-4 py-3 rounded-2xl text-[10px] font-black tracking-widest transition-all border flex items-center justify-center gap-2 ${
-                        gameOptions.selectedSet === set.id
-                          ? "bg-green-600 border-green-500 text-white shadow-[0_0_25px_rgba(34,197,94,0.3)] scale-105" 
-                          : "bg-white/5 border-white/5 text-slate-500 hover:bg-white/10 hover:text-slate-300"
-                      }`}
-                    >
-                      {set.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
 
-              <div className="space-y-5">
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-3 text-slate-400">
-                    <Filter className="w-4 h-4" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.3em]">Katalog Filtresi</span>
+                  {/* BOTTOM ROW: Filters & Rounds */}
+                  <div className="grid grid-cols-2 gap-8 items-start">
+                    {/* Filter Selection */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between px-1">
+                        <div className="flex items-center gap-2 text-slate-400">
+                          <Filter className="w-4 h-4" />
+                          <span className="text-[10px] font-black uppercase tracking-[0.2em]">Filtre</span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 h-[220px] overflow-y-auto pr-1 custom-scrollbar">
+                        {CATEGORIES.map((cat) => {
+                          const isSelected = gameOptions.selectedCategories.includes(cat.value);
+                          return (
+                            <button
+                              key={cat.value}
+                              onClick={() => {
+                                setGameOptions(prev => {
+                                  let newCats = [...prev.selectedCategories];
+                                  if (cat.value === "HEPSİ") {
+                                    newCats = ["HEPSİ"];
+                                  } else {
+                                    newCats = newCats.filter(c => c !== "HEPSİ");
+                                    if (newCats.includes(cat.value)) {
+                                      newCats = newCats.filter(c => c !== cat.value);
+                                    } else {
+                                      newCats.push(cat.value);
+                                    }
+                                    if (newCats.length === 0) newCats = ["HEPSİ"];
+                                  }
+                                  return { ...prev, selectedCategories: newCats };
+                                });
+                              }}
+                              className={`px-2 py-3 rounded-xl text-[9px] font-black tracking-widest transition-all border flex items-center justify-center gap-1 ${
+                                isSelected 
+                                  ? "bg-purple-600 border-purple-500 text-white" 
+                                  : "bg-white/5 border-white/5 text-slate-500 hover:bg-white/10 hover:text-slate-300"
+                              }`}
+                            >
+                              {isSelected && <Check className="w-3 h-3" />}
+                              {cat.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Rounds Selection */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between px-1">
+                        <div className="flex items-center gap-2 text-slate-400">
+                          <Layers className="w-4 h-4" />
+                          <span className="text-[10px] font-black uppercase tracking-[0.2em]">Tur</span>
+                        </div>
+                        <span className="text-[10px] font-black text-blue-500 italic">{gameOptions.maxRounds}</span>
+                      </div>
+                      <div className="px-1 pt-2">
+                        <input 
+                          type="range" 
+                          min="3" 
+                          max="15" 
+                          value={gameOptions.maxRounds}
+                          onChange={(e) => setGameOptions(prev => ({ ...prev, maxRounds: parseInt(e.target.value) }))}
+                          className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                        />
+                        <div className="flex justify-between mt-2 text-[9px] font-black text-slate-600 uppercase tracking-widest">
+                           <span>3</span>
+                           <span>9</span>
+                           <span>15</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-[10px] font-black text-purple-400 italic">
-                    {gameOptions.selectedCategories.includes("HEPSİ") 
-                      ? "TÜM KATALOG" 
-                      : `${gameOptions.selectedCategories.length} KATEGORİ`}
-                  </span>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {CATEGORIES.map((cat) => {
-                    const isSelected = gameOptions.selectedCategories.includes(cat.value);
-                    return (
-                      <button
-                        key={cat.value}
-                        onClick={() => {
-                          setGameOptions(prev => {
-                            let newCats = [...prev.selectedCategories];
-                            if (cat.value === "HEPSİ") {
-                              newCats = ["HEPSİ"];
-                            } else {
-                              // Remove HEPSİ if it exists
-                              newCats = newCats.filter(c => c !== "HEPSİ");
-                              // Toggle current
-                              if (newCats.includes(cat.value)) {
-                                newCats = newCats.filter(c => c !== cat.value);
-                              } else {
-                                newCats.push(cat.value);
-                              }
-                              // Back to HEPSİ if empty
-                              if (newCats.length === 0) newCats = ["HEPSİ"];
-                            }
-                            return { ...prev, selectedCategories: newCats };
-                          });
-                        }}
-                        className={`px-4 py-3 rounded-2xl text-[9px] font-black tracking-widest transition-all border flex items-center justify-center gap-2 ${
-                          isSelected 
-                            ? "bg-purple-600 border-purple-500 text-white shadow-[0_0_25px_rgba(147,51,234,0.3)]" 
-                            : "bg-white/5 border-white/5 text-slate-500 hover:bg-white/10 hover:text-slate-300"
-                        }`}
-                      >
-                        {isSelected && <Check className="w-3 h-3" />}
-                        {cat.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
 
-              {/* Start Button */}
-              <div className="pt-4">
-                <motion.button 
-                  whileHover={players.length >= 1 ? { scale: 1.02, y: -2 } : {}} 
-                  whileTap={players.length >= 1 ? { scale: 0.98 } : {}} 
-                  onClick={startGame} 
-                  disabled={players.length < 1}
-                  className={`w-full py-7 rounded-[2rem] font-black text-xl shadow-2xl transition-all flex items-center justify-center gap-4 group relative overflow-hidden ${
-                    players.length >= 1 
-                      ? "bg-gradient-to-br from-pink-500 via-rose-500 to-purple-600 text-white" 
-                      : "bg-white/5 text-slate-700 cursor-not-allowed border border-white/5"
-                  }`}
-                >
-                  {players.length >= 1 && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-shimmer" />
+                {/* Start Button */}
+                <div className="pt-4">
+                  <motion.button 
+                    whileHover={players.length >= 1 ? { scale: 1.02, y: -2 } : {}} 
+                    whileTap={players.length >= 1 ? { scale: 0.98 } : {}} 
+                    onClick={startGame} 
+                    disabled={players.length < 1}
+                    className={`w-full py-6 rounded-[2rem] font-black text-xl shadow-2xl transition-all flex items-center justify-center gap-4 group relative overflow-hidden ${
+                      players.length >= 1 
+                        ? "bg-gradient-to-br from-pink-500 via-rose-500 to-purple-600 text-white" 
+                        : "bg-white/5 text-slate-700 cursor-not-allowed border border-white/5"
+                    }`}
+                  >
+                    {players.length >= 1 && (
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-shimmer" />
+                    )}
+                    <Play className={`w-6 h-6 fill-current ${players.length >= 1 ? 'group-hover:translate-x-1 transition-transform' : ''}`} />
+                    OYUNU BAŞLAT
+                  </motion.button>
+                  {players.length < 1 && (
+                    <p className="text-[10px] text-center text-slate-600 font-bold uppercase tracking-widest mt-3">En az 1 oyuncu gereklidir</p>
                   )}
-                  <Play className={`w-6 h-6 fill-current ${players.length >= 1 ? 'group-hover:translate-x-1 transition-transform' : ''}`} />
-                  OYUNU BAŞLAT
-                </motion.button>
-                {players.length < 1 && (
-                  <p className="text-[9px] text-center text-slate-600 font-bold uppercase tracking-widest mt-4">En az 1 oyuncu gereklidir</p>
-                )}
+                </div>
+              </div>
+
+              {/* Status Footer */}
+              <div className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-[10px] font-black text-slate-400 tracking-widest uppercase">Sunucu Çevrimiçi</span>
+                </div>
+                  <span className="text-[10px] font-bold text-slate-600 uppercase">v2.0.4 - BETA</span>
+              </div>
+            </motion.div>
+          ) : (
+            <div className="col-span-12 flex flex-col items-center">
+              <div className="bg-white/5 backdrop-blur-md border border-white/10 px-12 py-6 rounded-full flex items-center gap-6 animate-pulse">
+                <div className="w-3 h-3 bg-pink-500 rounded-full animate-ping" />
+                <span className="text-xl font-black italic tracking-widest text-white uppercase">Oyunun başlatılması bekleniyor...</span>
               </div>
             </div>
-
-            {/* Status Footer */}
-            <div className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex items-center justify-between">
-               <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                  <span className="text-[10px] font-black text-slate-400 tracking-widest uppercase">Sunucu Çevrimiçi</span>
-               </div>
-               <span className="text-[10px] font-bold text-slate-600 uppercase">v2.0.4 - BETA</span>
-            </div>
-          </motion.div>
+          )}
         </div>
 
-        <style jsx global>{`
-          @keyframes shimmer {
-            100% { transform: translateX(100%); }
-          }
-          .animate-shimmer {
-            animation: shimmer 1.5s infinite;
-          }
-        `}</style>
+        {/* Suggestion Modal Trigger */}
+        <div className="fixed bottom-10 left-10 z-50">
+           <button 
+             onClick={() => setShowSuggestionModal(true)}
+             className="group flex items-center gap-3 bg-white/5 hover:bg-white/10 backdrop-blur-xl border border-white/10 p-4 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-2xl"
+           >
+              <div className="w-10 h-10 bg-pink-500/20 rounded-xl flex items-center justify-center text-pink-500 group-hover:scale-110 transition-transform">
+                <MessageSquarePlus className="w-6 h-6" />
+              </div>
+              <div className="text-left">
+                <p className="text-[10px] font-black text-pink-500 uppercase tracking-widest leading-none mb-1">Yeni Eşya</p>
+                <p className="text-xs font-bold text-white uppercase tracking-tight">ÖNERİDE BULUN</p>
+              </div>
+           </button>
+        </div>
+
+        {/* Item Suggestion Modal */}
+        <AnimatePresence>
+          {showSuggestionModal && (
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-6"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
+                className="bg-[#0d0e1b] border border-white/10 w-full max-w-4xl rounded-[3rem] overflow-hidden shadow-3xl flex flex-col lg:flex-row max-h-[90vh]"
+              >
+                {/* Left Side: Info & Example */}
+                <div className="lg:w-2/5 bg-gradient-to-b from-purple-500/10 to-pink-500/10 p-10 border-r border-white/5 flex flex-col gap-8">
+                  <div className="space-y-4">
+                    <div className="w-12 h-12 bg-pink-500 rounded-2xl flex items-center justify-center shadow-lg shadow-pink-500/20">
+                      <Lightbulb className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-3xl font-black italic tracking-tighter uppercase">Eşya <span className="text-pink-500">Öner</span></h3>
+                      <p className="text-sm text-slate-400 font-medium leading-relaxed mt-2">
+                        Oyuna eklenmesini istediğiniz çılgın fikirleri bizimle paylaşın. Yapılacak değerlendirmeden sonra herkes için oynanabilir olacak!
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] flex items-center gap-2">
+                       <div className="w-4 h-[1px] bg-slate-800" /> ÖRNEK
+                    </span>
+                    <div className="bg-white/5 border border-white/10 p-6 rounded-2xl space-y-4 rotate-[-1deg] hover:rotate-0 transition-transform cursor-help">
+                       <div className="flex justify-between items-start">
+                          <h4 className="text-lg font-black italic uppercase tracking-tight text-white/90">ANTİKA DAKTİLO</h4>
+                          <span className="text-[10px] bg-green-500/10 text-green-500 px-2 py-0.5 rounded font-black tracking-widest uppercase">EFSANEVİ</span>
+                       </div>
+                       <p className="text-[10px] text-slate-500 italic leading-relaxed">
+                         "1940'lardan kalma, üzerinde hala gizli bir casusluk kodunun izlerini taşıyan, tuşları altına kaplanmış nadide bir daktilo."
+                       </p>
+                       <div className="flex justify-between items-center pt-2 border-t border-white/5">
+                          <span className="text-[10px] font-black text-slate-400">TAHMİNİ DEĞER:</span>
+                          <span className="text-lg font-black italic text-white">$150,000</span>
+                       </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-auto bg-blue-500/10 border border-blue-500/20 p-4 rounded-2xl flex gap-3 italic">
+                    <Info className="w-5 h-5 text-blue-400 shrink-0" />
+                    <p className="text-[10px] text-blue-100/70 leading-relaxed font-medium">
+                      <span className="text-blue-400 font-black uppercase tracking-widest">Not:</span> Eşyaların gerçek değeri tarafımızca belirlenecek ve dengelenecektir.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Right Side: Form */}
+                <div className="flex-1 p-10 overflow-y-auto">
+                  <div className="flex justify-between items-center mb-8">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">ÖNERİ FORMU // {suggestStatus === 'success' ? 'TAMAMLANDI' : 'BEKLENİYOR'}</span>
+                    <button onClick={() => setShowSuggestionModal(false)} className="w-10 h-10 rounded-full hover:bg-white/5 flex items-center justify-center transition-colors">
+                      <X className="w-6 h-6 text-slate-500" />
+                    </button>
+                  </div>
+
+                  {suggestStatus === 'success' ? (
+                    <motion.div 
+                       initial={{ opacity: 0, scale: 0.9 }}
+                       animate={{ opacity: 1, scale: 1 }}
+                       className="h-full flex flex-col items-center justify-center text-center space-y-6"
+                    >
+                      <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center text-green-500 mb-4 animate-bounce">
+                        <Check className="w-10 h-10" />
+                      </div>
+                      <div className="space-y-2">
+                        <h4 className="text-3xl font-black italic uppercase italic tracking-tighter">TEŞEKKÜR EDERİZ!</h4>
+                        <p className="text-slate-400 max-w-xs mx-auto text-sm">Öneriniz başarıyla kaydedildi.</p>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          setSuggestStatus('idle');
+                          setSuggestForm({ name: "", description: "", suggestedValue: "", category: "Other", suggestedBy: "" });
+                          setShowSuggestionModal(false);
+                        }}
+                        className="bg-white text-black px-8 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-pink-500 hover:text-white transition-all"
+                      >
+                         KAPAT
+                      </button>
+                    </motion.div>
+                  ) : (
+                    <form 
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        setSuggestStatus('loading');
+                        try {
+                          const formData = new FormData();
+                          formData.append('name', suggestForm.name);
+                          formData.append('description', suggestForm.description);
+                          formData.append('suggestedValue', suggestForm.suggestedValue);
+                          formData.append('category', suggestForm.category);
+                          formData.append('suggestedBy', suggestForm.suggestedBy);
+                          
+                          const result = await suggestItem(formData);
+                          if (result?.success) {
+                            setSuggestStatus('success');
+                            soundManager.play('UI_SUCCESS');
+                          } else {
+                            console.error("Submission failed:", result?.error);
+                            setSuggestStatus('error');
+                          }
+                        } catch (err) {
+                          console.error("Submission error:", err);
+                          setSuggestStatus('error');
+                        }
+                      }}
+                      className="space-y-6"
+                    >
+                      <div className="space-y-2">
+                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">EŞYA ADI</label>
+                         <input 
+                           required
+                           value={suggestForm.name}
+                           onChange={e => setSuggestForm({...suggestForm, name: e.target.value})}
+                           placeholder="Örn: Antika Savaş Baltası"
+                           className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-white font-bold focus:outline-none focus:border-pink-500 focus:bg-pink-500/5 transition-all"
+                         />
+                      </div>
+
+                      <div className="space-y-2">
+                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">KISA AÇIKLAMA / HİKAYE</label>
+                         <textarea 
+                           required
+                           rows={3}
+                           value={suggestForm.description}
+                           onChange={e => setSuggestForm({...suggestForm, description: e.target.value})}
+                           placeholder="Eşyanın tarihçesi veya neden değerli olduğu..."
+                           className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-white font-bold focus:outline-none focus:border-pink-500 focus:bg-pink-500/5 transition-all resize-none"
+                         />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">ÖNERİLEN DEĞER ($)</label>
+                           <input 
+                             required
+                             type="number"
+                             value={suggestForm.suggestedValue}
+                             onChange={e => setSuggestForm({...suggestForm, suggestedValue: e.target.value})}
+                             placeholder="50,000"
+                             className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-white font-bold focus:outline-none focus:border-pink-500 focus:bg-pink-500/5 transition-all"
+                           />
+                        </div>
+                        <div className="space-y-2">
+                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">KATEGORİ</label>
+                           <select 
+                             value={suggestForm.category}
+                             onChange={e => setSuggestForm({...suggestForm, category: e.target.value})}
+                             className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-white font-bold focus:outline-none focus:border-pink-500 focus:bg-pink-500/5 transition-all appearance-none"
+                           >
+                             <option value="TARİH" className="bg-[#0d0e1b]">TARİH</option>
+                             <option value="POPÜLER KÜLTÜR" className="bg-[#0d0e1b]">POPÜLER KÜLTÜR</option>
+                             <option value="LÜKS" className="bg-[#0d0e1b]">LÜKS</option>
+                             <option value="SANAT" className="bg-[#0d0e1b]">SANAT</option>
+                             <option value="TEKNOLOJİ" className="bg-[#0d0e1b]">TEKNOLOJİ</option>
+                             <option value="DİĞER" className="bg-[#0d0e1b]">DİĞER</option>
+                           </select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">ÖNEREN KİŞİ (OPSİYONEL)</label>
+                         <input 
+                           value={suggestForm.suggestedBy}
+                           onChange={e => setSuggestForm({...suggestForm, suggestedBy: e.target.value})}
+                           placeholder="Adınız"
+                           className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-white font-bold focus:outline-none focus:border-pink-500 focus:bg-pink-500/5 transition-all"
+                         />
+                      </div>
+
+                      <button 
+                        disabled={suggestStatus === 'loading'}
+                        type="submit"
+                        className="w-full bg-pink-500 text-white font-black py-6 rounded-2xl text-sm tracking-[0.2em] shadow-xl shadow-pink-500/20 hover:bg-pink-400 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                      >
+                         {suggestStatus === 'loading' ? (
+                           <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                         ) : (
+                           <Zap className="w-5 h-5" />
+                         )}
+                         ÖNERİYİ GÖNDER
+                      </button>
+                      {suggestStatus === 'error' && (
+                        <p className="text-rose-500 text-center text-[10px] font-black uppercase tracking-widest">Bir hata oluştu. Lütfen tekrar deneyin.</p>
+                      )}
+                    </form>
+                  )}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
   }
+
+
 
   if (gameState === "INTEL_PHASE" || gameState === "BIDDING") {
     return (
@@ -1273,13 +1531,15 @@ export default function HostPage() {
             </div>
 
             <div className="flex gap-4">
-               <button 
-                  onClick={() => socket.emit("reset-session", { roomCode, hostId })} 
-                  className="bg-white text-slate-950 px-10 py-5 rounded-sm font-black text-sm hover:bg-pink-500 hover:text-white transition-all shadow-xl group flex items-center gap-3 uppercase tracking-widest"
-               >
-                  <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
-                  YENİ OTURUM
-               </button>
+               {isAuthorizedHost && (
+                 <button 
+                    onClick={() => socket.emit("reset-session", { roomCode, hostId })} 
+                    className="bg-white text-slate-950 px-10 py-5 rounded-sm font-black text-sm hover:bg-pink-500 hover:text-white transition-all shadow-xl group flex items-center gap-3 uppercase tracking-widest"
+                 >
+                    <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
+                    YENİ OTURUM
+                 </button>
+               )}
             </div>
           </motion.div>
 

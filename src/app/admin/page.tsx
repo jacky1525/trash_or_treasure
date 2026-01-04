@@ -14,10 +14,14 @@ export default async function AdminPage() {
     orderBy: { createdAt: "desc" },
   });
 
+  const suggestions = await prisma.suggestedItem.findMany({
+    orderBy: { createdAt: "desc" },
+  });
+
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <div className="max-w-7xl mx-auto">
-        <AdminClient initialItems={items as any} />
+        <AdminClient initialItems={items as any} initialSuggestions={suggestions as any} />
       </div>
     </div>
   );

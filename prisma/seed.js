@@ -2123,9 +2123,30 @@ const items = [
         "realValue": 350000,
         "category": "Luxury",
         "gameSet": "SET_A",
-        "isTreasure": false,
-        "publicRumor": "",
-        "intelPool": []
+        "isTreasure": true,
+        "publicRumor": "MÜCEVHERAT DÜNYASI: Viktorya dönemine ait kayıp bir aile yadigarı setin, isimsiz bir satıcı tarafından piyasaya sürüldüğü dedikodusu var.",
+        "intelPool": [
+            // --- ⚪ SIRADAN (7 ADET) ---
+            { "id": 1, "rarity": "common", "text": "Taşların rengi o kadar koyu yeşil ki, şişe camına benziyor." },
+            { "id": 2, "rarity": "common", "text": "Altın kısımları biraz matlaşmış, parlamıyor. Bakır olabilir mi?" },
+            { "id": 3, "rarity": "common", "text": "Taşların içinde çatlak gibi şeyler var. Kusurlu mal mı bu?" },
+            { "id": 4, "rarity": "common", "text": "Tasarımı çok eski moda, babaanne kolyesi gibi duruyor." },
+            { "id": 5, "rarity": "common", "text": "Kutusu kadife kaplı ve çok eski, rutubet kokuyor." },
+            { "id": 6, "rarity": "common", "text": "Satıcı 'Büyük büyükannem sarayda çalışırdı' diyor." },
+            { "id": 7, "rarity": "common", "text": "Klipsi biraz zor açılıyor, modern kolyeler gibi pratik değil." },
+
+            // --- 🟣 NADİR (6 ADET) ---
+            { "id": 8, "rarity": "rare", "text": "TAŞ İÇİ (JARDIN): Taşların içindeki 'kusur' sanılan izler, doğal zümrütlere has 'Jardin' (Bahçe) inklüzyonlarıdır. Sentetik taş tertemiz olurdu." },
+            { "id": 9, "rarity": "rare", "text": "MENŞEİ: Taşların içindeki mineral yapısı (Three-phase inclusion), sadece Kolombiya Muzo madeninden çıkan zümrütlerde bulunur." },
+            { "id": 10, "rarity": "rare", "text": "ALTIN AYARI: Metal testi 14 Ayar (585) gösteriyor. Viktorya dönemi İngiltere'sinde 14 ayar altın kullanımı standarttı." },
+            { "id": 11, "rarity": "rare", "text": "KESİM TEKNİĞİ: Taşlar modern lazer kesim değil, 'Old Mine Cut' (Eski Maden Kesimi) ile elde yontulmuş. Antika olduğunu kanıtlar." },
+            { "id": 12, "rarity": "rare", "text": "MONTÜR: Taşların arkası kapalı (Closed Back) mıhlanmış. Bu teknik 1800'lerin sonuna kadar kullanılırdı." },
+            { "id": 13, "rarity": "rare", "text": "AĞIRLIK: Kolye eldeki hissiyatına göre oldukça ağır. Altın ve doğal taş yoğunluğu hissediliyor." },
+
+            // --- 🟡 EFSANEVİ (2 ADET) ---
+            { "id": 14, "rarity": "legendary", "text": "USTA DAMGASI: Klipsin dilinde mikroskopla görülebilen 'Garrard' damgası var. Garrard, İngiliz Kraliyet ailesinin resmi kuyumcusudur." },
+            { "id": 15, "rarity": "legendary", "text": "ENVANTER KAYDI: Kolyenin tasarımı, 1895 tarihli 'Londra Sosyetesi Müzayedesi' kataloğundaki 42 numaralı parçayla birebir eşleşiyor." }
+        ]
     },
     {
         "name": "TAM TAKIM ŞÖVALYE ZIRHI",
@@ -2576,8 +2597,29 @@ const items = [
         "category": "Art",
         "gameSet": "SET_A",
         "isTreasure": false,
-        "publicRumor": "",
-        "intelPool": []
+        "publicRumor": "SANAT TARİHİ: Da Vinci'nin Mona Lisa için yaptığı hazırlık eskizlerinin çoğunun kayıp olduğu biliniyor. Bu çizim sanat dünyasını sarsabilir.",
+        "intelPool": [
+            // --- ⚪ SIRADAN (7 ADET) ---
+            { "id": 1, "rarity": "common", "text": "Kağıt çok eski ve lekeli, kenarları yanmış gibi. Gerçekten 500 yıllık olabilir mi?" },
+            { "id": 2, "rarity": "common", "text": "Mona Lisa'nın gülüşü biraz farklı, daha somurtkan duruyor." },
+            { "id": 3, "rarity": "common", "text": "Çizgiler çok net, kömür kalemle yapılmışa benziyor." },
+            { "id": 4, "rarity": "common", "text": "Kağıdın arkasında soluk bir damga var, kraliyet mührü olabilir." },
+            { "id": 5, "rarity": "common", "text": "Satıcı 'Bunu Floransa'da yıkılan bir kilisenin duvarının içinde bulduk' diyor." },
+            { "id": 6, "rarity": "common", "text": "Solak birinin çizimine benziyor (Taramalar soldan sağa). Da Vinci solaktı." },
+            { "id": 7, "rarity": "common", "text": "Çerçevesi kurtlanmış ahşap, çok eski görünüyor." },
+
+            // --- 🟣 NADİR (6 ADET) ---
+            { "id": 8, "rarity": "rare", "text": "KAĞIT DOKUSU: Kağıt el yapımı değil, makine üretimi selüloz içeriyor. 16. yüzyılda kağıt paçavradan yapılırdı." },
+            { "id": 9, "rarity": "rare", "text": "MÜREKKEP ANALİZİ: Ana hatlar çizim değil, baskı mürekkebi. Üzerinden kömür kalemle geçilmiş." },
+            { "id": 10, "rarity": "rare", "text": "TARİHLEME: Kağıdın arkasındaki mürekkep izi 1920'lerin matbaa mürekkebiyle uyuşuyor." },
+            { "id": 11, "rarity": "rare", "text": "X-RAY: Çizimin altında 'Louvre Museum Souvenir' yazısı silinmiş olarak görünüyor." },
+            { "id": 12, "rarity": "rare", "text": "ÇİZİM HATASI: Da Vinci'nin karakteristik 'sfumato' (dumanlı geçiş) tekniği yok. Gölgelendirmeler çok sert ve amatörce." },
+            { "id": 13, "rarity": "rare", "text": "ESKİTME: Kağıdın üzerindeki kahverengi lekeler doğal yaşlanma (foxing) değil, kahve ile fırça darbesiyle yapılmış." },
+
+            // --- 🟡 EFSANEVİ (2 ADET) ---
+            { "id": 14, "rarity": "legendary", "text": "BASKI NOKTALARI: Mikroskop altında, çizimin gölgeli kısımlarında litografi baskı noktaları (dot matrix) açıkça görülüyor." },
+            { "id": 15, "rarity": "legendary", "text": "İMZA: Kağıdın en alt köşesinde silinmiş bir imza bulundu: 'H.L. 1924'. (Dönemin ünlü sahtekarı Henri Lemoine)." }
+        ]
     },
     {
         "name": "APOLLO 11 AY TOZU FIRÇASI",
@@ -3292,8 +3334,29 @@ const items = [
         "category": "Pop-Culture",
         "gameSet": "SET_A",
         "isTreasure": false,
-        "publicRumor": "",
-        "intelPool": []
+        "publicRumor": "SİNEMA KULİSİ: Universal Stüdyoları'nın deposundan 90'larda çalınan orijinal 'Animatronik T-Rex' parçalarının karaborsada olduğu konuşuluyor.",
+        "intelPool": [
+            // --- ⚪ SIRADAN (7 ADET) ---
+            { "id": 1, "rarity": "common", "text": "Diş çok büyük, 25 santim var. Dinozor dişi bu kadar pürüzsüz olur mu?" },
+            { "id": 2, "rarity": "common", "text": "Rengi sararmış kemik gibi duruyor ama dokununca sıcak, taş gibi soğuk değil." },
+            { "id": 3, "rarity": "common", "text": "Kaidesinde 'Site B - Isla Sorna' yazıyor. Bu filmdeki adanın adı." },
+            { "id": 4, "rarity": "common", "text": "Satıcı 'Bunu set ekibinden biri hatıra olarak almış' diyor." },
+            { "id": 5, "rarity": "common", "text": "Dişin ucunda kırık var, sanki bir şeye sertçe çarpmış." },
+            { "id": 6, "rarity": "common", "text": "Üzerinde Steven Spielberg imzalı bir plaket var ama imza baskı gibi duruyor." },
+            { "id": 7, "rarity": "common", "text": "Dişin kök kısmı çok düz kesilmiş. Gerçek fosil veya prop böyle kesilir mi?" },
+
+            // --- 🟣 NADİR (6 ADET) ---
+            { "id": 8, "rarity": "rare", "text": "MALZEME: Dişin yapısı 'Epoksi Reçine'. Filmdeki animatroniklerde daha hafif olan 'Poliüretan Köpük' kullanılmıştı." },
+            { "id": 9, "rarity": "rare", "text": "BOYA KATMANI: Diş üzerindeki eskitme efektleri el boyaması değil, fabrikasyon sprey boya (airbrush) ile yapılmış." },
+            { "id": 10, "rarity": "rare", "text": "KALIP İZİ: Dişin arka tarafında boydan boya geçen ince bir kalıp birleşme çizgisi (seam line) var. Orijinal proplarda bu temizlenir." },
+            { "id": 11, "rarity": "rare", "text": "AĞIRLIK: Parça beklenenden çok ağır. İçi dolu reçine döküm. Filmde kullanılanlar hareket kolaylığı için içi boş yapılırdı." },
+            { "id": 12, "rarity": "rare", "text": "SERTİFİKA: Yanındaki Universal Studios sertifikasının kağıdı 1993 değil, 2015 yılına ait parlak kuşe kağıt." },
+            { "id": 13, "rarity": "rare", "text": "İMZA ANALİZİ: Spielberg imzası ıslak mürekkep değil, lazer baskı (Autopen)." },
+
+            // --- 🟡 EFSANEVİ (2 ADET) ---
+            { "id": 14, "rarity": "legendary", "text": "ALT ETİKET: Kaidenin altındaki kadife kaldırılınca 'Made in China - Universal Gift Shop' etiketi bulundu." },
+            { "id": 15, "rarity": "legendary", "text": "BARKOD: Ürün kodu taratıldığında 'Jurassic World: Fallen Kingdom - Collector's Edition DVD Seti' hediyesi olduğu çıkıyor." }
+        ]
     },
     {
         "name": "EINSTEIN'IN KARALADIĞI PEÇETE",

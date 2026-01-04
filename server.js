@@ -74,7 +74,18 @@ app.prepare().then(() => {
                 highestBidder: null
             };
             socket.join(roomCode);
-            socket.emit("room-created", roomCode);
+            socket.emit("room-synced", {
+                state: "LOBBY",
+                players: [],
+                currentItem: null,
+                revealData: null,
+                round: 1,
+                maxRounds: 9,
+                soldHistory: [],
+                currentBid: 0,
+                highestBidder: null,
+                isAuthorizedHost: true
+            });
             console.log(`Room created: ${roomCode} by host: ${hostId}`);
         });
 
@@ -168,7 +179,8 @@ app.prepare().then(() => {
                 soldHistory: room.soldHistory,
                 currentBid: room.currentBid,
                 items: room.items.map(i => i.name), // Just names for security if needed
-                highestBidder: room.highestBidder
+                highestBidder: room.highestBidder,
+                isAuthorizedHost: isHost && room.hostId === sessionId
             });
         });
 
@@ -573,7 +585,7 @@ app.prepare().then(() => {
         });
     });
 
-    const PORT = process.env.PORT || 3001;
+    const PORT = process.env.PORT || 3000;
     server.listen(PORT, "0.0.0.0", (err) => {
         if (err) throw err;
         console.log(`> Server listening on port ${PORT}`);
