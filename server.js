@@ -146,17 +146,18 @@ app.prepare().then(() => {
                 return;
             }
 
+            // Everyone joins the room to receive updates (bidding-started, etc.)
+            socket.join(roomCode);
+
             if (isHost) {
                 if (room.hostId === sessionId) {
                     room.host = socket.id;
-                    socket.join(roomCode);
-                    console.log(`Host re-synced to room ${roomCode}`);
+                    console.log(`Primary Host re-synced to room ${roomCode}`);
                 }
             } else {
                 const player = room.players.find(p => p.playerId === sessionId);
                 if (player) {
                     player.id = socket.id;
-                    socket.join(roomCode);
                     console.log(`Player ${player.name} re-synced to room ${roomCode}`);
                 }
             }
@@ -176,12 +177,15 @@ app.prepare().then(() => {
                 revealData: room.state === "REVEAL" ? room.revealData : null,
                 round: room.round,
                 maxRounds: room.maxRounds,
+                timeLeft: room.timeLeft || 0,
+                settings: room.settings || {},
                 soldHistory: room.soldHistory,
                 currentBid: room.currentBid,
-                items: room.items.map(i => i.name), // Just names for security if needed
-                highestBidder: room.highestBidder,
+                items: room.items.map(i => i.name),
+                highestBidder: room.highestBidder?.name || room.highestBidder,
                 isAuthorizedHost: isHost && room.hostId === sessionId
             });
+            console.log(`Sync complete for ${isHost ? 'Host' : 'Player'} in room ${roomCode}`);
         });
 
         socket.on("reset-session", ({ roomCode, hostId }) => {

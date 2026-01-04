@@ -101,6 +101,13 @@ export default function HostPage() {
       if (data.currentBid !== undefined) setCurrentBid(data.currentBid);
       if (data.highestBidder) setHighestBidder(data.highestBidder);
       if (data.isAuthorizedHost !== undefined) setIsAuthorizedHost(data.isAuthorizedHost);
+      
+      // Persist timer and duration settings
+      if (data.timeLeft !== undefined) setTimeLeft(data.timeLeft);
+      if (data.settings?.roundDuration) {
+        setGameOptions(prev => ({ ...prev, roundDuration: data.settings.roundDuration }));
+        setTotalDuration(data.settings.roundDuration);
+      }
     });
 
     socket.on("session-reset", () => {
@@ -148,8 +155,14 @@ export default function HostPage() {
 
     socket.on("timer-update", (time) => {
       setTimeLeft(time);
+      // Only play heartbeat if it's the final 5 seconds AND it's not already playing (or just play once at 5)
+      // Actually, standard behavior is a pulse every second in final 5. 
+      // To prevent stacking, we should use a single sound or stop previous.
       if (time <= 5 && time > 0) {
+        soundManager.stop("heartbeat"); // Kill previous instance to prevent stack
         soundManager.play("heartbeat", { volume: 0.25 });
+      } else if (time === 0) {
+        soundManager.stop("heartbeat");
       }
     });
 
@@ -216,6 +229,13 @@ export default function HostPage() {
       socket.off("game-over");
       socket.off("ready-update");
       socket.off("new-reaction");
+      socket.off("room-synced");
+      socket.off("session-reset");
+      socket.off("error-msg");
+      
+      // Stop all active sounds on unmount
+      soundManager.stop("heartbeat");
+      soundManager.stop("bid");
     };
   }, [socket]);
 
